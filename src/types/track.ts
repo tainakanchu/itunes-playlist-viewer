@@ -1,0 +1,30 @@
+export interface Track {
+  id: number;
+  trackId: number;
+  persistentId: string | null;
+  name: string | null;
+  artist: string | null;
+  albumArtist: string | null;
+  composer: string | null;
+  album: string | null;
+  genre: string | null;
+  year: number | null;
+  rating: number | null;
+  playCount: number | null;
+  skipCount: number | null;
+  totalTimeMs: number | null;
+  dateAdded: string | null;
+  dateModified: string | null;
+  bpm: number | null;
+  comments: string | null;
+  locationRaw: string | null;
+  locationPath: string | null;
+  trackType: string | null;
+  disabled: boolean;
+  compilation: boolean;
+  discNumber: number | null;
+  discCount: number | null;
+  trackNumber: number | null;
+  trackCount: number | null;
+  fileExists: boolean;
+}
