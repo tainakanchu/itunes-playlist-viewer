@@ -1,0 +1,53 @@
+[package]
+name = "itunes-playlist-viewer"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "itunes_playlist_viewer_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "itunes-playlist-viewer"
+path = "src/main.rs"
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.34", features = ["bundled"] }
+quick-xml = "0.37"
+rodio = { version = "0.20", features = ["symphonia-all"] }
+url = "2"
+percent-encoding = "2"
+thiserror = "2"
+chrono = { version = "0.4", features = ["serde"] }
+# HTTP client for MusicBrainz / Cover Art Archive lookup
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+# Manual disc-id calculation (used as fallback + for unit tests).
+sha1 = "0.10"
+base64 = "0.22"
+# Audio file tag reader (FLAC/MP3/AAC/WAV/etc.) for file import.
+lofty = "0.21"
+
+# === Unix-only: MusicBrainz disc id via libdiscid (C lib comes from Nix/Brew/apt). ===
+# Skipped on Windows because libdiscid isn't trivially available via the standard
+# Windows toolchain. CD ripping commands return a friendly error on Windows.
+[target.'cfg(unix)'.dependencies]
+discid = "0.6"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

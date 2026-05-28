@@ -1,0 +1,38 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Node
+node_modules
+dist
+dist-ssr
+
+# Tauri / Rust
+src-tauri/target
+src-tauri/Cargo.lock
+src-tauri/gen/schemas
+
+# Build artifacts
+*.tsbuildinfo
+
+# Nix
+result
+result-*
+
+# direnv
+.direnv
