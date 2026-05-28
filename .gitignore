@@ -36,3 +36,9 @@ result-*
 
 # direnv
 .direnv
+
+# Tauri icon CLI side-effects we don't ship (we target desktop only)
+src-tauri/icons/android/
+src-tauri/icons/ios/
+src-tauri/icons/Square*Logo.png
+src-tauri/icons/StoreLogo.png
