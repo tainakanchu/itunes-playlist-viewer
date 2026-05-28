@@ -825,6 +825,242 @@ input {
   color: var(--text-secondary);
 }
 
+/* === Track Table v2 (grid-based, configurable columns) === */
+.track-table-header {
+  display: grid !important;
+  align-items: center;
+  height: var(--row-height);
+  padding: 0 8px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.track-table-header .col {
+  cursor: default;
+  user-select: none;
+}
+
+.track-table-header .col.sortable {
+  cursor: pointer;
+}
+
+.track-table-header .col.sortable:hover {
+  color: var(--text-primary);
+}
+
+.track-table-header .col.num {
+  text-align: right;
+}
+
+.col-picker-btn {
+  position: absolute;
+  right: 4px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0 6px;
+}
+
+.col-picker-btn:hover {
+  color: var(--text-primary);
+}
+
+.track-row .col.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+/* Rating stars */
+.col-rating {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.rating-star {
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  width: 12px;
+  text-align: center;
+}
+
+.rating-star.on {
+  color: var(--warning);
+}
+
+.rating-star:hover {
+  color: var(--warning);
+}
+
+/* Genre chips */
+.col-genre {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  overflow: hidden;
+  align-items: center;
+}
+
+.genre-chip {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  line-height: 1.4;
+}
+
+.genre-chip:hover {
+  background: var(--bg-selected);
+  color: #fff;
+  border-color: var(--accent-blue);
+}
+
+/* === Column picker === */
+.column-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.column-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.column-picker-row:hover {
+  background: var(--bg-hover);
+}
+
+/* === Track Editor === */
+.track-editor {
+  width: 520px;
+  max-height: 90vh;
+}
+
+.track-editor-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px 16px;
+  overflow-y: auto;
+}
+
+.track-editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.track-editor-row {
+  display: flex;
+  gap: 8px;
+}
+
+.track-editor-row .track-editor-field {
+  flex: 1;
+}
+
+.track-editor-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-weight: 600;
+}
+
+.track-editor-readonly {
+  background: var(--bg-primary);
+  padding: 6px 10px;
+  border-radius: 5px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+
+.track-editor-rating {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 0;
+}
+
+.track-editor-rating .rating-star {
+  font-size: 16px;
+  width: 18px;
+}
+
+/* === Player Bar enhancements === */
+.player-btn.small {
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  font-size: 12px;
+}
+
+.player-btn.small:hover {
+  background: var(--bg-tertiary);
+  color: var(--accent);
+}
+
+.player-btn.toggle.on {
+  color: var(--accent);
+}
+
+.repeat-one-badge {
+  position: absolute;
+  top: -3px;
+  right: -7px;
+  font-size: 8px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 6px;
+  padding: 0 3px;
+  line-height: 1.3;
+  font-weight: 700;
+}
+
+.player-volume {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 130px;
+  flex-shrink: 0;
+}
+
+.player-volume-icon {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.volume-slider {
+  flex: 1;
+  height: 3px;
+}
+
 /* === Rules Panel === */
 .rules-panel {
   width: min(1100px, 95vw);

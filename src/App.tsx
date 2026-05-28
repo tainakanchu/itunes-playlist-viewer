@@ -4,12 +4,14 @@ import { SearchBar } from "./components/SearchBar";
 import { TrackTable } from "./components/TrackTable";
 import { PlayerBar } from "./components/PlayerBar";
 import { Toolbar } from "./components/Toolbar";
+import { TrackEditor } from "./components/TrackEditor";
 import { RipDialog } from "./components/ripper/RipDialog";
 import { RulesPanel } from "./components/rules/RulesPanel";
 import { useStore } from "./store/useStore";
 import * as libraryApi from "./api/library";
 import * as playlistsApi from "./api/playlists";
 import * as playbackApi from "./api/playback";
+import type { Track } from "./types";
 
 const isTauri = "__TAURI_INTERNALS__" in window;
 
@@ -26,13 +28,25 @@ export default function App() {
     setPlayback,
     tracks,
     playback,
+    selectedTrackIds,
+    setSearchQuery,
+    setViewMode,
+    setSelectedPlaylistId,
+    volume,
+    setVolume,
+    shuffle,
+    setShuffle,
+    repeat,
+    setRepeat,
   } = useStore();
 
   const PAGE_SIZE = 500;
   const pollRef = useRef<ReturnType<typeof setInterval>>(undefined);
+  const advanceRef = useRef<ReturnType<typeof setInterval>>(undefined);
   const [reloadCount, setReloadCount] = useState(0);
   const [ripOpen, setRipOpen] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [editorTrack, setEditorTrack] = useState<Track | null>(null);
 
   const reloadPlaylists = useCallback(async () => {
     if (!isTauri) return;
@@ -99,6 +113,16 @@ export default function App() {
     reloadPlaylists();
   }, [reloadPlaylists]);
 
+  // Sync persisted volume / shuffle / repeat to the Rust player on mount.
+  useEffect(() => {
+    if (!isTauri) return;
+    playbackApi.setVolume(volume).catch(() => {});
+    playbackApi.setShuffle(shuffle).catch(() => {});
+    playbackApi.setRepeat(repeat).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Playback state poll.
   useEffect(() => {
     if (!isTauri) return;
     pollRef.current = setInterval(async () => {
@@ -106,48 +130,128 @@ export default function App() {
         const state = await playbackApi.getPlaybackState();
         setPlayback(state);
       } catch {
-        // ignore polling errors
+        // ignore
       }
     }, 250);
     return () => clearInterval(pollRef.current);
   }, [setPlayback]);
 
+  // Advance queue when current track finishes.
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      const isInput =
-        target.tagName === "INPUT" || target.tagName === "TEXTAREA";
-
-      if (e.key === "/" && !isInput) {
-        e.preventDefault();
-        document.getElementById("search-input")?.focus();
+    if (!isTauri) return;
+    advanceRef.current = setInterval(async () => {
+      try {
+        await playbackApi.checkAdvance();
+      } catch {
+        // ignore
       }
-      if (e.key === "Escape" && isInput) {
-        (target as HTMLInputElement).blur();
-      }
-      if (e.key === " " && !isInput) {
-        e.preventDefault();
-        if (isTauri) {
-          if (playback.isPlaying) {
-            playbackApi.pause();
-          } else if (playback.currentTrackId !== null) {
-            playbackApi.resume();
-          }
-        }
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [playback.isPlaying, playback.currentTrackId]);
-
-  const handleLoadMore = useCallback(() => {
-    loadTracks(false);
-  }, [loadTracks]);
+    }, 500);
+    return () => clearInterval(advanceRef.current);
+  }, []);
 
   const triggerReload = useCallback(() => {
     setReloadCount((c) => c + 1);
     reloadPlaylists();
   }, [reloadPlaylists]);
+
+  const handleLoadMore = useCallback(() => {
+    loadTracks(false);
+  }, [loadTracks]);
+
+  // Keyboard shortcuts (issue #1).
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const tag = target.tagName;
+      const isInput =
+        tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable;
+      const cmd = e.ctrlKey || e.metaKey;
+
+      // Ctrl/Cmd shortcuts work even inside inputs.
+      if (cmd && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        document.getElementById("search-input")?.focus();
+        return;
+      }
+      if (cmd && e.key.toLowerCase() === "l") {
+        e.preventDefault();
+        setViewMode("library");
+        setSelectedPlaylistId(null);
+        setSearchQuery("");
+        return;
+      }
+      if (cmd && e.key.toLowerCase() === "i") {
+        e.preventDefault();
+        const first = selectedTrackIds.size > 0 ? Array.from(selectedTrackIds)[0] : null;
+        const t = first != null ? tracks.find((x) => x.trackId === first) : null;
+        if (t) setEditorTrack(t);
+        return;
+      }
+
+      // Other shortcuts: skip when typing in an input.
+      if (isInput) {
+        if (e.key === "Escape") (target as HTMLInputElement).blur();
+        return;
+      }
+
+      if (e.key === "/") {
+        e.preventDefault();
+        document.getElementById("search-input")?.focus();
+      } else if (e.key === " ") {
+        e.preventDefault();
+        if (isTauri) {
+          if (playback.isPlaying) playbackApi.pause();
+          else if (playback.currentTrackId !== null) playbackApi.resume();
+        }
+      } else if (e.key === "Enter") {
+        // Play the first selected track.
+        const first = selectedTrackIds.size > 0 ? Array.from(selectedTrackIds)[0] : null;
+        if (first != null && isTauri) {
+          playbackApi.playTrack(first).catch((err) => console.error(err));
+        }
+      } else if (e.key.toLowerCase() === "j") {
+        if (isTauri) playbackApi.playPrev();
+      } else if (e.key.toLowerCase() === "k") {
+        if (isTauri) playbackApi.playNext();
+      } else if (e.key.toLowerCase() === "s") {
+        const next = !shuffle;
+        setShuffle(next);
+        if (isTauri) playbackApi.setShuffle(next);
+      } else if (e.key.toLowerCase() === "r") {
+        const order = ["off", "all", "one"] as const;
+        const i = order.indexOf(repeat);
+        const next = order[(i + 1) % order.length];
+        setRepeat(next);
+        if (isTauri) playbackApi.setRepeat(next);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        const v = Math.min(1, volume + 0.05);
+        setVolume(v);
+        if (isTauri) playbackApi.setVolume(v);
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        const v = Math.max(0, volume - 0.05);
+        setVolume(v);
+        if (isTauri) playbackApi.setVolume(v);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    playback.isPlaying,
+    playback.currentTrackId,
+    selectedTrackIds,
+    tracks,
+    shuffle,
+    repeat,
+    volume,
+    setShuffle,
+    setRepeat,
+    setVolume,
+    setSearchQuery,
+    setViewMode,
+    setSelectedPlaylistId,
+  ]);
 
   return (
     <div className="app">
@@ -159,11 +263,22 @@ export default function App() {
           onOpenRulesPanel={() => setRulesOpen(true)}
         />
         <SearchBar />
-        <TrackTable onLoadMore={handleLoadMore} onTracksChanged={triggerReload} />
+        <TrackTable
+          onLoadMore={handleLoadMore}
+          onTracksChanged={triggerReload}
+          onEditTrack={(t) => setEditorTrack(t)}
+        />
       </div>
       <PlayerBar />
       <RipDialog open={ripOpen} onClose={() => setRipOpen(false)} onLibraryChanged={triggerReload} />
       <RulesPanel open={rulesOpen} onClose={() => setRulesOpen(false)} onLibraryChanged={triggerReload} />
+      {editorTrack && (
+        <TrackEditor
+          track={editorTrack}
+          onClose={() => setEditorTrack(null)}
+          onSaved={triggerReload}
+        />
+      )}
     </div>
   );
 }
