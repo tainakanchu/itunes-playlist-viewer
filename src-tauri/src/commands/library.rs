@@ -3,7 +3,9 @@ use tauri::{AppHandle, Manager};
 use crate::db::Database;
 use crate::importer;
 use crate::itunes_xml::{parser, writer};
-use crate::models::{ExportResult, ImportFileResult, ImportResult, LibraryStats, Track};
+use crate::models::{
+    ExportResult, GenreTagCount, ImportFileResult, ImportResult, LibraryStats, Track, TrackEdit,
+};
 
 fn get_db(app: &AppHandle) -> Result<Database, String> {
     let app_dir = app
@@ -67,6 +69,50 @@ pub fn search_tracks(
 pub fn get_library_stats(app: AppHandle) -> Result<LibraryStats, String> {
     let db = get_db(&app)?;
     db.library_stats().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn update_track(app: AppHandle, track_id: i64, edits: TrackEdit) -> Result<(), String> {
+    let db = get_db(&app)?;
+    db.update_track(track_id, &edits).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_track_rating(app: AppHandle, track_id: i64, rating: i64) -> Result<(), String> {
+    let db = get_db(&app)?;
+    db.set_rating(track_id, rating).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn add_genre_tag(
+    app: AppHandle,
+    track_ids: Vec<i64>,
+    tag: String,
+) -> Result<(), String> {
+    let db = get_db(&app)?;
+    for tid in track_ids {
+        db.add_genre_tag(tid, &tag).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn remove_genre_tag(
+    app: AppHandle,
+    track_ids: Vec<i64>,
+    tag: String,
+) -> Result<(), String> {
+    let db = get_db(&app)?;
+    for tid in track_ids {
+        db.remove_genre_tag(tid, &tag).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_all_genre_tags(app: AppHandle) -> Result<Vec<GenreTagCount>, String> {
+    let db = get_db(&app)?;
+    db.get_all_genre_tags().map_err(|e| e.to_string())
 }
 
 pub(crate) fn open_db(app: &AppHandle) -> Result<Database, String> {

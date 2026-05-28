@@ -2,7 +2,28 @@ use rusqlite::{params, Result};
 
 use super::Database;
 use crate::itunes_xml::parser::RawTrack;
-use crate::models::Track;
+use crate::models::{GenreTagCount, Track, TrackEdit};
+
+/// 既存 genre 文字列 (空白区切り) に tag を追加。重複は無視。
+fn merge_tag(current: &str, tag: &str) -> String {
+    let tag = tag.trim();
+    if tag.is_empty() {
+        return current.to_string();
+    }
+    let mut tags: Vec<&str> = current.split_whitespace().collect();
+    if !tags.iter().any(|t| t.eq_ignore_ascii_case(tag)) {
+        tags.push(tag);
+    }
+    tags.join(" ")
+}
+
+fn remove_tag(current: &str, tag: &str) -> String {
+    current
+        .split_whitespace()
+        .filter(|t| !t.eq_ignore_ascii_case(tag.trim()))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
 
 impl Database {
     pub fn begin_import(&self) -> Result<()> {
@@ -190,6 +211,163 @@ impl Database {
         )?;
         let rows = stmt.query_map([], row_to_track)?;
         rows.collect()
+    }
+
+    /// 編集可能フィールドの部分更新。None のフィールドは触らない。
+    #[allow(clippy::too_many_arguments)]
+    pub fn update_track(&self, track_id: i64, edits: &TrackEdit) -> Result<()> {
+        // We build the SET clause dynamically so unset fields stay untouched.
+        let mut sets: Vec<&str> = Vec::new();
+        let mut values: Vec<rusqlite::types::Value> = Vec::new();
+
+        macro_rules! set_str {
+            ($field:ident, $col:literal) => {
+                if let Some(v) = &edits.$field {
+                    sets.push(concat!($col, " = ?"));
+                    values.push(rusqlite::types::Value::Text(v.clone()));
+                }
+            };
+        }
+        macro_rules! set_int_opt {
+            ($field:ident, $col:literal) => {
+                if let Some(v) = edits.$field {
+                    sets.push(concat!($col, " = ?"));
+                    values.push(rusqlite::types::Value::Integer(v));
+                }
+            };
+        }
+        macro_rules! set_int_clear {
+            // For nullable numeric fields: Some(Some(v)) sets, Some(None) clears, None keeps.
+            ($field:ident, $col:literal) => {
+                if let Some(opt) = &edits.$field {
+                    match opt {
+                        Some(v) => {
+                            sets.push(concat!($col, " = ?"));
+                            values.push(rusqlite::types::Value::Integer(*v));
+                        }
+                        None => {
+                            sets.push(concat!($col, " = NULL"));
+                        }
+                    }
+                }
+            };
+        }
+
+        set_str!(name, "name");
+        set_str!(artist, "artist");
+        set_str!(album_artist, "album_artist");
+        set_str!(composer, "composer");
+        set_str!(album, "album");
+        set_str!(genre, "genre");
+        set_str!(comments, "comments");
+        set_int_clear!(year, "year");
+        set_int_clear!(bpm, "bpm");
+        set_int_opt!(rating, "rating");
+        set_int_clear!(track_number, "track_number");
+        set_int_clear!(track_count, "track_count");
+        set_int_clear!(disc_number, "disc_number");
+        set_int_clear!(disc_count, "disc_count");
+
+        if sets.is_empty() {
+            return Ok(());
+        }
+
+        // Touch date_modified.
+        sets.push("date_modified = ?");
+        values.push(rusqlite::types::Value::Text(
+            chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+        ));
+
+        values.push(rusqlite::types::Value::Integer(track_id));
+
+        let sql = format!("UPDATE tracks SET {} WHERE track_id = ?", sets.join(", "));
+        let params = rusqlite::params_from_iter(values);
+        self.conn.execute(&sql, params)?;
+        Ok(())
+    }
+
+    pub fn set_rating(&self, track_id: i64, rating: i64) -> Result<()> {
+        self.conn.execute(
+            "UPDATE tracks SET rating = ?1, date_modified = ?2 WHERE track_id = ?3",
+            params![
+                rating,
+                chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                track_id
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// genre を空白区切りタグ集合として扱い、tag を追加。重複は無視。
+    pub fn add_genre_tag(&self, track_id: i64, tag: &str) -> Result<()> {
+        let current: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT genre FROM tracks WHERE track_id = ?1",
+                params![track_id],
+                |r| r.get(0),
+            )
+            .ok();
+
+        let new_genre = merge_tag(current.as_deref().unwrap_or(""), tag);
+        self.conn.execute(
+            "UPDATE tracks SET genre = ?1, date_modified = ?2 WHERE track_id = ?3",
+            params![
+                new_genre,
+                chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                track_id
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn remove_genre_tag(&self, track_id: i64, tag: &str) -> Result<()> {
+        let current: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT genre FROM tracks WHERE track_id = ?1",
+                params![track_id],
+                |r| r.get(0),
+            )
+            .ok();
+
+        let new_genre = remove_tag(current.as_deref().unwrap_or(""), tag);
+        let new_value: Option<String> = if new_genre.is_empty() {
+            None
+        } else {
+            Some(new_genre)
+        };
+        self.conn.execute(
+            "UPDATE tracks SET genre = ?1, date_modified = ?2 WHERE track_id = ?3",
+            params![
+                new_value,
+                chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                track_id
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// DB 中の全 genre 値を空白区切りでバラして頻度順に返す。
+    pub fn get_all_genre_tags(&self) -> Result<Vec<GenreTagCount>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT genre FROM tracks WHERE genre IS NOT NULL AND genre != ''")?;
+        let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
+
+        let mut counts: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+        for row in rows {
+            let g = row?;
+            for tag in g.split_whitespace() {
+                *counts.entry(tag.to_string()).or_insert(0) += 1;
+            }
+        }
+        let mut out: Vec<GenreTagCount> = counts
+            .into_iter()
+            .map(|(tag, count)| GenreTagCount { tag, count })
+            .collect();
+        out.sort_by(|a, b| b.count.cmp(&a.count).then(a.tag.cmp(&b.tag)));
+        Ok(out)
     }
 
     pub fn add_recent_track(&self, track_id: i64) -> Result<()> {

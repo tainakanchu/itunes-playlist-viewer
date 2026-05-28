@@ -82,6 +82,60 @@ pub struct LibraryStats {
     pub total_time_ms: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QueueState {
+    pub track_ids: Vec<i64>,
+    pub current_index: Option<i64>,
+    pub shuffle: bool,
+    pub repeat: String,
+    pub volume: f32,
+}
+
+/// トラックの編集可能フィールドのパッチ。
+/// - `String` 系: `Some("")` で空文字に、`None` で変更なし
+/// - 数値系の Option<Option<T>>: `Some(Some(v))` で設定、`Some(None)` で NULL に、`None` で変更なし
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TrackEdit {
+    pub name: Option<String>,
+    pub artist: Option<String>,
+    pub album_artist: Option<String>,
+    pub composer: Option<String>,
+    pub album: Option<String>,
+    pub genre: Option<String>,
+    pub comments: Option<String>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub year: Option<Option<i64>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub bpm: Option<Option<i64>>,
+    pub rating: Option<i64>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub track_number: Option<Option<i64>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub track_count: Option<Option<i64>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub disc_number: Option<Option<i64>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub disc_count: Option<Option<i64>>,
+}
+
+/// `null` を「明示的にクリア」と扱うために、二重 Option を必要とする。
+fn double_option<'de, T, D>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: serde::Deserializer<'de>,
+{
+    Option::<T>::deserialize(deserializer).map(Some)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GenreTagCount {
+    pub tag: String,
+    pub count: i64,
+}
+
 // === CD / ripping models ===
 
 /// 物理 CD ドライブから読み取った TOC + disc id。
