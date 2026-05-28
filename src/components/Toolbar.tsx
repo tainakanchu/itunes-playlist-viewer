@@ -6,6 +6,7 @@ import type { LibraryStats } from "../types";
 interface ToolbarProps {
   onLibraryChanged: () => void;
   onOpenRipDialog: () => void;
+  onOpenRulesPanel: () => void;
 }
 
 function formatDuration(ms: number): string {
@@ -18,7 +19,7 @@ function formatDuration(ms: number): string {
   return `${minutes}m`;
 }
 
-export function Toolbar({ onLibraryChanged, onOpenRipDialog }: ToolbarProps) {
+export function Toolbar({ onLibraryChanged, onOpenRipDialog, onOpenRulesPanel }: ToolbarProps) {
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [importingFiles, setImportingFiles] = useState(false);
@@ -151,6 +152,13 @@ export function Toolbar({ onLibraryChanged, onOpenRipDialog }: ToolbarProps) {
           title="Rip an audio CD from an attached drive"
         >
           💿 Rip CD
+        </button>
+        <button
+          className="toolbar-btn"
+          onClick={onOpenRulesPanel}
+          title="Build playlists declaratively from a YAML rules file"
+        >
+          ⚙️ Rules
         </button>
         <button
           className="toolbar-btn"

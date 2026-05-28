@@ -5,6 +5,7 @@ import { TrackTable } from "./components/TrackTable";
 import { PlayerBar } from "./components/PlayerBar";
 import { Toolbar } from "./components/Toolbar";
 import { RipDialog } from "./components/ripper/RipDialog";
+import { RulesPanel } from "./components/rules/RulesPanel";
 import { useStore } from "./store/useStore";
 import * as libraryApi from "./api/library";
 import * as playlistsApi from "./api/playlists";
@@ -31,6 +32,7 @@ export default function App() {
   const pollRef = useRef<ReturnType<typeof setInterval>>(undefined);
   const [reloadCount, setReloadCount] = useState(0);
   const [ripOpen, setRipOpen] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   const reloadPlaylists = useCallback(async () => {
     if (!isTauri) return;
@@ -151,12 +153,17 @@ export default function App() {
     <div className="app">
       <Sidebar onPlaylistsChanged={triggerReload} />
       <div className="main">
-        <Toolbar onLibraryChanged={triggerReload} onOpenRipDialog={() => setRipOpen(true)} />
+        <Toolbar
+          onLibraryChanged={triggerReload}
+          onOpenRipDialog={() => setRipOpen(true)}
+          onOpenRulesPanel={() => setRulesOpen(true)}
+        />
         <SearchBar />
         <TrackTable onLoadMore={handleLoadMore} onTracksChanged={triggerReload} />
       </div>
       <PlayerBar />
       <RipDialog open={ripOpen} onClose={() => setRipOpen(false)} onLibraryChanged={triggerReload} />
+      <RulesPanel open={rulesOpen} onClose={() => setRulesOpen(false)} onLibraryChanged={triggerReload} />
     </div>
   );
 }

@@ -6,6 +6,7 @@ mod importer;
 mod itunes_xml;
 mod metadata;
 mod models;
+mod playlist_rules;
 
 use std::sync::Mutex;
 
@@ -47,6 +48,12 @@ pub fn run() {
             commands::ripping::lookup_release_by_toc,
             commands::ripping::compute_disc_id,
             commands::ripping::rip_cd,
+            // declarative playlist rules
+            commands::rules::validate_rules,
+            commands::rules::preview_rules,
+            commands::rules::apply_rules,
+            commands::rules::read_text_file,
+            commands::rules::write_text_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -3,3 +3,4 @@ export * from "./playlist";
 export * from "./playback";
 export * from "./library";
 export * from "./ripper";
+export * from "./rules";

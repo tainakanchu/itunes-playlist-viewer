@@ -222,6 +222,64 @@ impl Database {
         Ok(())
     }
 
+    /// 指定名のルートフォルダ (parent_persistent_id IS NULL) とその子孫を全削除。
+    /// 該当フォルダが存在しなければ false を返す (no-op)。プレイリストルールの
+    /// `removeExistingNamespace` 用。
+    pub fn delete_playlist_subtree_by_root_name(&self, root_name: &str) -> Result<bool> {
+        use std::collections::VecDeque;
+
+        let root: Option<(i64, Option<String>)> = self
+            .conn
+            .query_row(
+                "SELECT playlist_id, persistent_id FROM playlists
+                 WHERE parent_persistent_id IS NULL AND name = ?1 AND is_folder = 1",
+                rusqlite::params![root_name],
+                |r| Ok((r.get::<_, i64>(0)?, r.get::<_, Option<String>>(1)?)),
+            )
+            .ok();
+
+        let Some((root_id, root_pid)) = root else {
+            return Ok(false);
+        };
+
+        let mut to_delete: Vec<i64> = vec![root_id];
+        let mut queue: VecDeque<String> = VecDeque::new();
+        if let Some(pid) = root_pid {
+            queue.push_back(pid);
+        }
+
+        while let Some(pid) = queue.pop_front() {
+            let mut stmt = self.conn.prepare(
+                "SELECT playlist_id, persistent_id FROM playlists WHERE parent_persistent_id = ?1",
+            )?;
+            let rows = stmt.query_map(rusqlite::params![pid], |r| {
+                Ok((r.get::<_, i64>(0)?, r.get::<_, Option<String>>(1)?))
+            })?;
+            for row in rows {
+                let (id, pid_opt) = row?;
+                to_delete.push(id);
+                if let Some(p) = pid_opt {
+                    queue.push_back(p);
+                }
+            }
+        }
+
+        let tx = self.conn.unchecked_transaction()?;
+        for id in &to_delete {
+            tx.execute(
+                "DELETE FROM playlist_tracks WHERE playlist_id = ?1",
+                rusqlite::params![id],
+            )?;
+            tx.execute(
+                "DELETE FROM playlists WHERE playlist_id = ?1",
+                rusqlite::params![id],
+            )?;
+        }
+        tx.commit()?;
+
+        Ok(true)
+    }
+
     pub fn reorder_playlist_tracks(
         &self,
         playlist_id: i64,
