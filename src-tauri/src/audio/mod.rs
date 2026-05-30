@@ -27,7 +27,10 @@ pub struct AudioPlayer {
     volume: f32,
 
     queue: Vec<i64>,
-    queue_index: Option<usize>,
+    /// 再生順 = `queue` のインデックスの並べ替え (shuffle 時はシャッフルされた並び)。
+    order: Vec<usize>,
+    /// `order` 上の現在位置 (Up Next はここ以降を表示する)。
+    order_pos: Option<usize>,
     shuffle: bool,
     repeat: RepeatMode,
     /// `set_track_played` でフロントから「曲が終わった」と通知された後、
@@ -57,7 +60,8 @@ impl AudioPlayer {
             volume: 1.0,
 
             queue: Vec::new(),
-            queue_index: None,
+            order: Vec::new(),
+            order_pos: None,
             shuffle: false,
             repeat: RepeatMode::Off,
             finished_for_advance: false,
@@ -187,32 +191,89 @@ impl AudioPlayer {
 
     pub fn set_queue(&mut self, track_ids: Vec<i64>, start_index: usize) {
         self.queue = track_ids;
-        self.queue_index = if self.queue.is_empty() {
-            None
+        if self.queue.is_empty() {
+            self.order.clear();
+            self.order_pos = None;
+            return;
+        }
+        let start = start_index.min(self.queue.len() - 1);
+        self.rebuild_order(start);
+    }
+
+    /// `start` (queue index) を先頭にした再生順を作る。
+    /// shuffle ON なら残りをシャッフル、OFF なら通常順。
+    fn rebuild_order(&mut self, start: usize) {
+        let n = self.queue.len();
+        if self.shuffle {
+            let mut rest: Vec<usize> = (0..n).filter(|&i| i != start).collect();
+            shuffle_in_place(&mut rest);
+            let mut order = Vec::with_capacity(n);
+            order.push(start);
+            order.extend(rest);
+            self.order = order;
+            self.order_pos = Some(0);
         } else {
-            Some(start_index.min(self.queue.len() - 1))
-        };
+            self.order = (0..n).collect();
+            self.order_pos = Some(start);
+        }
     }
 
     pub fn enqueue(&mut self, track_id: i64) {
         self.queue.push(track_id);
+        self.order.push(self.queue.len() - 1);
+        if self.order_pos.is_none() {
+            self.order_pos = Some(self.order.len() - 1);
+        }
     }
 
     pub fn clear_queue(&mut self) {
         self.queue.clear();
-        self.queue_index = None;
+        self.order.clear();
+        self.order_pos = None;
     }
 
-    pub fn queue(&self) -> &[i64] {
-        &self.queue
+    /// 再生順に並べた track_id 列 (Up Next 表示はこれを使う)。
+    pub fn ordered_track_ids(&self) -> Vec<i64> {
+        self.order
+            .iter()
+            .filter_map(|&i| self.queue.get(i).copied())
+            .collect()
     }
 
-    pub fn queue_index(&self) -> Option<usize> {
-        self.queue_index
+    /// 再生順上の現在位置 (`ordered_track_ids` に対するインデックス)。
+    pub fn order_pos(&self) -> Option<usize> {
+        self.order_pos
     }
 
     pub fn set_shuffle(&mut self, on: bool) {
+        if self.shuffle == on {
+            return;
+        }
         self.shuffle = on;
+        if self.queue.is_empty() {
+            return;
+        }
+        match self.order_pos {
+            // ON: これから流す分 (現在位置より後) だけシャッフル。再生済みは保持。
+            Some(pos) if on => {
+                let tail_start = pos + 1;
+                if tail_start < self.order.len() {
+                    let mut tail: Vec<usize> = self.order[tail_start..].to_vec();
+                    shuffle_in_place(&mut tail);
+                    self.order.truncate(tail_start);
+                    self.order.extend(tail);
+                }
+            }
+            // OFF: 現在の曲を基準に通常順へ戻す。
+            Some(pos) => {
+                let cur = self.order.get(pos).copied().unwrap_or(0);
+                self.order = (0..self.queue.len()).collect();
+                self.order_pos = Some(cur);
+            }
+            None => {
+                self.rebuild_order(0);
+            }
+        }
     }
 
     pub fn shuffle(&self) -> bool {
@@ -227,74 +288,105 @@ impl AudioPlayer {
         self.repeat
     }
 
-    /// 次に再生すべき track_id を計算 (キュー上のインデックスも進める)。
-    /// - shuffle が ON ならランダム
-    /// - repeat = One なら現在の曲を返す
-    /// - repeat = All なら末尾で先頭に戻る
+    fn current_order_value(&self) -> Option<usize> {
+        self.order_pos.and_then(|i| self.order.get(i).copied())
+    }
+
+    fn current_track_id_from_order(&self) -> Option<i64> {
+        self.current_order_value()
+            .and_then(|qi| self.queue.get(qi).copied())
+    }
+
+    /// 次に再生すべき track_id を返し、再生順の現在位置を進める。
+    /// - repeat One: 現在の曲
+    /// - 末尾 + repeat All: 先頭へ (shuffle 時は次の一巡を再シャッフル)
+    /// - 末尾 + repeat Off: None
     pub fn advance_next(&mut self) -> Option<i64> {
         if self.queue.is_empty() {
             return None;
         }
-
         if matches!(self.repeat, RepeatMode::One) {
-            return self.queue_index.and_then(|i| self.queue.get(i).copied());
+            return self.current_track_id_from_order();
         }
-
-        let next_index = if self.shuffle {
-            pseudo_random_index(self.queue.len(), self.queue_index)
-        } else {
-            match self.queue_index {
-                Some(i) if i + 1 < self.queue.len() => Some(i + 1),
-                Some(_) => {
-                    if matches!(self.repeat, RepeatMode::All) {
-                        Some(0)
-                    } else {
-                        None
-                    }
-                }
-                None => Some(0),
+        match self.order_pos {
+            Some(i) if i + 1 < self.order.len() => {
+                self.order_pos = Some(i + 1);
             }
-        };
-
-        self.queue_index = next_index;
-        next_index.and_then(|i| self.queue.get(i).copied())
+            Some(_) => {
+                if !matches!(self.repeat, RepeatMode::All) {
+                    return None;
+                }
+                if self.shuffle {
+                    // 次の一巡を再シャッフル (直前の曲が先頭に来ないよう調整)。
+                    let prev = self.current_order_value();
+                    let mut all: Vec<usize> = (0..self.queue.len()).collect();
+                    shuffle_in_place(&mut all);
+                    if self.queue.len() > 1 {
+                        if let Some(p) = prev {
+                            if all[0] == p {
+                                all.swap(0, 1);
+                            }
+                        }
+                    }
+                    self.order = all;
+                }
+                self.order_pos = Some(0);
+            }
+            None => {
+                self.order_pos = Some(0);
+            }
+        }
+        self.current_track_id_from_order()
     }
 
     pub fn advance_prev(&mut self) -> Option<i64> {
         if self.queue.is_empty() {
             return None;
         }
-        let next_index = match self.queue_index {
+        match self.order_pos {
             Some(0) => {
-                if matches!(self.repeat, RepeatMode::All) {
-                    Some(self.queue.len() - 1)
+                if matches!(self.repeat, RepeatMode::All) && !self.order.is_empty() {
+                    self.order_pos = Some(self.order.len() - 1);
                 } else {
-                    Some(0)
+                    self.order_pos = Some(0);
                 }
             }
-            Some(i) => Some(i - 1),
-            None => Some(0),
-        };
-        self.queue_index = next_index;
-        next_index.and_then(|i| self.queue.get(i).copied())
+            Some(i) => {
+                self.order_pos = Some(i - 1);
+            }
+            None => {
+                self.order_pos = Some(0);
+            }
+        }
+        self.current_track_id_from_order()
     }
 }
 
-/// std::time ベースの粗いランダム (`rand` 依存を増やさずに済ませる)。
-fn pseudo_random_index(len: usize, exclude: Option<usize>) -> Option<usize> {
-    if len == 0 {
-        return None;
+/// Fisher-Yates シャッフル (`rand` 依存を増やさず軽量 PRNG で)。
+fn shuffle_in_place(v: &mut [usize]) {
+    let n = v.len();
+    if n <= 1 {
+        return;
     }
-    if len == 1 {
-        return Some(0);
+    let mut state = rng_seed();
+    for i in (1..n).rev() {
+        state = xorshift64(state);
+        let j = (state % (i as u64 + 1)) as usize;
+        v.swap(i, j);
     }
+}
+
+fn rng_seed() -> u64 {
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.subsec_nanos() as usize)
-        .unwrap_or(0);
-    let mut idx = nanos % len;
-    if Some(idx) == exclude {
-        idx = (idx + 1) % len;
-    }
-    Some(idx)
+        .map(|d| d.as_nanos() as u64)
+        .unwrap_or(0x9E37_79B9_7F4A_7C15);
+    nanos | 1
+}
+
+fn xorshift64(mut x: u64) -> u64 {
+    x ^= x << 13;
+    x ^= x >> 7;
+    x ^= x << 17;
+    x
 }

@@ -110,8 +110,8 @@ pub fn get_queue(
 ) -> Result<crate::models::QueueState, String> {
     let p = player.lock().map_err(|e| e.to_string())?;
     Ok(crate::models::QueueState {
-        track_ids: p.queue().to_vec(),
-        current_index: p.queue_index().map(|i| i as i64),
+        track_ids: p.ordered_track_ids(),
+        current_index: p.order_pos().map(|i| i as i64),
         shuffle: p.shuffle(),
         repeat: match p.repeat() {
             RepeatMode::Off => "off".to_string(),

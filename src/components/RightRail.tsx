@@ -34,6 +34,8 @@ export function RightRail({ onPlaylistsChanged }: RightRailProps) {
     removeFromCrate,
     reorderCrate,
     clearCrate,
+    shuffle,
+    repeat,
   } = useStore();
 
   const [queueTracks, setQueueTracks] = useState<Track[]>([]);
@@ -67,7 +69,8 @@ export function RightRail({ onPlaylistsChanged }: RightRailProps) {
     return () => {
       alive = false;
     };
-  }, [railTab, playback.currentTrackId, tracks]);
+    // shuffle / repeat 変更で再生順が変わるので Up Next を取り直す。
+  }, [railTab, playback.currentTrackId, tracks, shuffle, repeat]);
 
   const onDragStart = (i: number) => {
     dragIdx.current = i;
