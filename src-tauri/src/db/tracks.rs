@@ -218,6 +218,9 @@ impl Database {
         rows.collect()
     }
 
+    /// 空白区切りの各トークンを AND で結合した検索。
+    /// 各トークンは name/artist/album/album_artist/genre/comments の
+    /// いずれかに部分一致 (OR)、トークン同士は AND。
     pub fn search_tracks(
         &self,
         query: &str,
@@ -226,8 +229,36 @@ impl Database {
         sort_field: Option<&str>,
         sort_order: Option<&str>,
     ) -> Result<Vec<Track>> {
-        let pattern = format!("%{}%", query);
+        use rusqlite::types::Value;
+
+        const COLS: [&str; 6] = ["name", "artist", "album", "album_artist", "genre", "comments"];
+        let tokens: Vec<&str> = query.split_whitespace().collect();
         let order_by = build_order_by(sort_field, sort_order, "", "name COLLATE NOCASE ASC");
+
+        let mut bind: Vec<Value> = Vec::new();
+        let where_sql = if tokens.is_empty() {
+            "1=1".to_string()
+        } else {
+            tokens
+                .iter()
+                .map(|tok| {
+                    let pat = format!("%{}%", tok);
+                    let group = COLS
+                        .iter()
+                        .map(|c| {
+                            bind.push(Value::Text(pat.clone()));
+                            format!("{} LIKE ?", c)
+                        })
+                        .collect::<Vec<_>>()
+                        .join(" OR ");
+                    format!("({})", group)
+                })
+                .collect::<Vec<_>>()
+                .join(" AND ")
+        };
+        bind.push(Value::Integer(limit));
+        bind.push(Value::Integer(offset));
+
         let sql = format!(
             "SELECT id, track_id, persistent_id, name, artist, album_artist, composer,
                     album, genre, year, rating, play_count, skip_count, total_time_ms,
@@ -235,13 +266,12 @@ impl Database {
                     track_type, disabled, compilation, disc_number, disc_count,
                     track_number, track_count, file_exists
              FROM tracks
-             WHERE name LIKE ?1 OR artist LIKE ?1 OR album LIKE ?1
-                   OR album_artist LIKE ?1 OR genre LIKE ?1 OR comments LIKE ?1
-             ORDER BY {} LIMIT ?2 OFFSET ?3",
-            order_by
+             WHERE {}
+             ORDER BY {} LIMIT ? OFFSET ?",
+            where_sql, order_by
         );
         let mut stmt = self.conn.prepare(&sql)?;
-        let rows = stmt.query_map(params![pattern, limit, offset], row_to_track)?;
+        let rows = stmt.query_map(rusqlite::params_from_iter(bind.iter()), row_to_track)?;
         rows.collect()
     }
 
