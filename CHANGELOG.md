@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.0.4] - 2026-05-30
+
+### Added
+- Genre / term filter chips: clicking a genre tag now adds it as a removable filter chip instead of replacing the search. Multiple chips stack as AND conditions, each removable individually (with a "clear all"), and they combine with the free-text search box.
+
+### Changed
+- Search now splits the query on spaces and ANDs the tokens — each token must match somewhere in name / artist / album / album artist / genre / comments. (Previously the whole string, spaces included, had to appear as one substring.)
+- Shuffle now precomputes a real shuffled play order (Fisher–Yates), so the **Up Next** list reflects the actual upcoming shuffled tracks instead of the original order. Turning shuffle on reshuffles only the not-yet-played tail; a full pass under repeat-all reshuffles for the next lap.
+- The GitHub Release body now includes this CHANGELOG section for the tag, followed by the auto-generated "What's Changed".
+
 ## [v0.0.3] - 2026-05-30
 
 ### Added
@@ -95,7 +105,8 @@ Initial public release. A self-contained iTunes-style music manager that imports
 - GitHub Actions workflow building `.exe` + MSI + NSIS installer on `windows-latest`; tag-triggered releases attach the installer set automatically.
 - Persistent UI settings (sort, columns, volume, shuffle, repeat) via zustand `persist` → `localStorage`.
 
-[Unreleased]: https://github.com/tainakanchu/itunes-playlist-viewer/compare/v0.0.3...HEAD
+[Unreleased]: https://github.com/tainakanchu/itunes-playlist-viewer/compare/v0.0.4...HEAD
+[v0.0.4]: https://github.com/tainakanchu/itunes-playlist-viewer/compare/v0.0.3...v0.0.4
 [v0.0.3]: https://github.com/tainakanchu/itunes-playlist-viewer/compare/v0.0.2...v0.0.3
 [v0.0.2]: https://github.com/tainakanchu/itunes-playlist-viewer/compare/v0.0.1...v0.0.2
 [v0.0.1]: https://github.com/tainakanchu/itunes-playlist-viewer/releases/tag/v0.0.1
