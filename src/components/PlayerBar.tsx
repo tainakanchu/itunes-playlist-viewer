@@ -79,7 +79,13 @@ export function PlayerBar() {
       <div className="cb-pinfo">
         {currentTrack ? (
           <>
-            <Cover seed={currentTrack.album} glyph={currentTrack.name} size={48} radius={9} />
+            <Cover
+              seed={currentTrack.album}
+              glyph={currentTrack.name}
+              path={currentTrack.fileExists ? currentTrack.locationPath : null}
+              size={48}
+              radius={9}
+            />
             <div className="cb-pa-meta">
               <div className="cj">{currentTrack.name || "(unknown)"}</div>
               <div className="la">

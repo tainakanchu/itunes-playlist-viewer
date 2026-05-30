@@ -3,7 +3,7 @@ import { useStore } from "../store/useStore";
 import * as playbackApi from "../api/playback";
 import * as playlistsApi from "../api/playlists";
 import { Icon } from "./Icon";
-import { Cover } from "./Cover";
+import { Cover, ArtworkImg } from "./Cover";
 import { artGradient, bpmColor, leadingGlyph } from "../lib/art";
 import type { Track } from "../types";
 
@@ -122,6 +122,7 @@ export function RightRail({ onPlaylistsChanged }: RightRailProps) {
           <>
             <div className="cb-nowart" style={{ background: artGradient(now.album) }}>
               <span className="g">{leadingGlyph(now.name)}</span>
+              <ArtworkImg path={now.fileExists ? now.locationPath : null} />
               <div className="ov">
                 {now.bpm != null && (
                   <span style={{ color: bpmColor(now.bpm) }}>{now.bpm} BPM</span>
@@ -197,7 +198,13 @@ export function RightRail({ onPlaylistsChanged }: RightRailProps) {
                 className="cb-cnode"
                 onDoubleClick={() => playFromCrate(t)}
               >
-                <Cover seed={t.album} glyph={t.name} size={42} radius={8} />
+                <Cover
+                  seed={t.album}
+                  glyph={t.name}
+                  path={t.fileExists ? t.locationPath : null}
+                  size={42}
+                  radius={8}
+                />
                 <div className="cb-cmetawrap">
                   <div className="cj">{t.name || "(unknown)"}</div>
                   <div className="la">
@@ -257,7 +264,13 @@ export function RightRail({ onPlaylistsChanged }: RightRailProps) {
                   <span className="cb-cgrip">
                     <Icon name="dragHandle" size={15} />
                   </span>
-                  <Cover seed={t.album} glyph={t.name} size={42} radius={8} />
+                  <Cover
+                  seed={t.album}
+                  glyph={t.name}
+                  path={t.fileExists ? t.locationPath : null}
+                  size={42}
+                  radius={8}
+                />
                   <div className="cb-cmetawrap">
                     <div className="cj">{t.name || "(unknown)"}</div>
                     <div className="la">

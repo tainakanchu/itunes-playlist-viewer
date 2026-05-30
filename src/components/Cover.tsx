@@ -1,19 +1,54 @@
+import { useEffect, useState } from "react";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { artGradient, leadingGlyph } from "../lib/art";
+
+const isTauri = "__TAURI_INTERNALS__" in window;
+
+/// トラックの実ファイルに埋め込まれたジャケットの URL を返す（無ければ null）。
+/// バックエンドの `artwork://` カスタムスキームが embedded picture を配信する。
+export function artworkUrl(path: string | null | undefined): string | null {
+  if (!path || !isTauri) return null;
+  return convertFileSrc(path, "artwork");
+}
+
+/// 親（position:relative + overflow:hidden）を埋めるアートワーク <img>。
+/// パスが無い / Tauri 外 / 埋め込み画像が無い(404) 場合は何も描画せず、
+/// 下地のグラデーション＋グリフがそのまま見える。
+export function ArtworkImg({ path }: { path: string | null | undefined }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [path]);
+
+  const url = artworkUrl(path);
+  if (!url || failed) return null;
+  return (
+    <img
+      className="cb-art-img"
+      src={url}
+      loading="lazy"
+      decoding="async"
+      draggable={false}
+      alt=""
+      onError={() => setFailed(true)}
+    />
+  );
+}
 
 interface CoverProps {
   /// グラデーションの種（通常はアルバム名）。
   seed: string | null | undefined;
   /// 中央に出す文字（通常は曲名先頭）。
   glyph: string | null | undefined;
+  /// 実ファイルパス。あれば埋め込みジャケットを優先表示。
+  path?: string | null;
   size: number;
   radius?: number;
   className?: string;
   style?: React.CSSProperties;
 }
 
-/// 実ジャケが無い前提のプレースホルダ・カバー。
-/// アルバム名→2色グラデ + 曲名先頭グリフ（CJK 可）。
-export function Cover({ seed, glyph, size, radius = 8, className, style }: CoverProps) {
+/// 正方形のジャケット表示。埋め込み画像があればそれを、無ければ
+/// アルバム名→2色グラデ + 曲名先頭グリフ（CJK 可）を表示する。
+export function Cover({ seed, glyph, path, size, radius = 8, className, style }: CoverProps) {
   return (
     <div
       className={"cb-cover" + (className ? " " + className : "")}
@@ -46,6 +81,7 @@ export function Cover({ seed, glyph, size, radius = 8, className, style }: Cover
       >
         {leadingGlyph(glyph)}
       </span>
+      <ArtworkImg path={path} />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useStore } from "../store/useStore";
 import * as playbackApi from "../api/playback";
 import { Icon } from "./Icon";
+import { ArtworkImg } from "./Cover";
 import { artGradient, bpmColor, leadingGlyph } from "../lib/art";
 import type { Track } from "../types";
 
@@ -121,6 +122,7 @@ export function CoversView({ onLoadMore }: CoversViewProps) {
                       style={{ background: artGradient(t.album) }}
                     >
                       <span className="glyph">{leadingGlyph(t.name)}</span>
+                      <ArtworkImg path={t.fileExists ? t.locationPath : null} />
                       <span className="grad" />
                       <div className="kbtag">
                         {t.bpm != null && (

@@ -375,6 +375,7 @@ export function TrackTable({ onLoadMore, onTracksChanged, onEditTrack }: TrackTa
                     className="cb-cov"
                     seed={t.album}
                     glyph={t.name}
+                    path={t.fileExists ? t.locationPath : null}
                     size={coverSize}
                     radius={6}
                   />

@@ -1,3 +1,4 @@
+mod artwork;
 mod audio;
 mod cd_ripper;
 mod commands;
@@ -12,6 +13,14 @@ mod updater;
 
 use std::sync::Mutex;
 
+/// アートワークが無い / 読めない場合の 404 レスポンス。
+fn not_found() -> tauri::http::Response<Vec<u8>> {
+    tauri::http::Response::builder()
+        .status(404)
+        .body(Vec::new())
+        .expect("static 404 response")
+}
+
 pub fn run() {
     let audio_player = Mutex::new(audio::AudioPlayer::new());
     let smtc_state = Mutex::new(smtc::SmtcState::new());
@@ -20,6 +29,29 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
+        // 埋め込みジャケットを `artwork://localhost/<percent-encoded path>` で配信。
+        // <img> から遅延ロードされ、WebView がレスポンスをキャッシュする。
+        .register_asynchronous_uri_scheme_protocol("artwork", |_ctx, request, responder| {
+            // convertFileSrc は `/<encodeURIComponent(path)>` を作る。先頭スラッシュは
+            // 1 個だけ剥がす (絶対パスの先頭 `/` を誤って消さないため)。
+            let raw = request.uri().path();
+            let path_enc = raw.strip_prefix('/').unwrap_or(raw).to_string();
+            std::thread::spawn(move || {
+                let path = percent_encoding::percent_decode_str(&path_enc)
+                    .decode_utf8_lossy()
+                    .into_owned();
+                let resp = match artwork::extract_picture(&path) {
+                    Some((data, mime)) => tauri::http::Response::builder()
+                        .status(200)
+                        .header(tauri::http::header::CONTENT_TYPE, mime)
+                        .header(tauri::http::header::CACHE_CONTROL, "max-age=86400")
+                        .body(data)
+                        .unwrap_or_else(|_| not_found()),
+                    None => not_found(),
+                };
+                responder.respond(resp);
+            });
+        })
         .manage(audio_player)
         .manage(smtc_state)
         .setup(|app| {

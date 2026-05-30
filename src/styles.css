@@ -541,6 +541,16 @@ input {
   color: var(--tx2);
 }
 
+/* Embedded artwork overlay (fills its rounded, clipped parent). */
+.cb-art-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 .cb-id {
   flex: 1;
   display: flex;

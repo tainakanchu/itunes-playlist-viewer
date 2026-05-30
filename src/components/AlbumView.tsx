@@ -15,6 +15,12 @@ interface GroupedItem {
   tracks: Track[];
 }
 
+/// グループの代表アートワーク用に、実ファイルを持つ先頭トラックのパスを返す。
+function repPath(tracks: Track[]): string | null {
+  const t = tracks.find((x) => x.fileExists && x.locationPath);
+  return t?.locationPath ?? null;
+}
+
 function formatTime(ms: number | null): string {
   if (!ms) return "";
   const totalSec = Math.floor(ms / 1000);
@@ -103,7 +109,13 @@ export function AlbumView({ mode }: AlbumViewProps) {
           return (
             <div key={g.key} className={`album-card ${isOpen ? "open" : ""}`}>
               <div className="album-card-header" onClick={() => toggle(g.key)}>
-                <Cover seed={g.seed} glyph={g.label} size={56} radius={10} />
+                <Cover
+                  seed={g.seed}
+                  glyph={g.label}
+                  path={repPath(g.tracks)}
+                  size={56}
+                  radius={10}
+                />
                 <div className="album-meta">
                   <div className="album-title" title={g.label}>
                     {g.label}
