@@ -45,6 +45,71 @@ fn sort_field_to_column(sort_field: &str) -> Option<(&'static str, bool)> {
     }
 }
 
+/// 検索トークンが bpm:/key:/energy: フィルタなら (SQL 句, バインド値) を返す。
+/// 句は相関サブクエリで track_analysis を参照する (SELECT 句や JOIN を変えずに済む)。
+fn parse_analysis_filter(tok: &str) -> Option<(String, Vec<rusqlite::types::Value>)> {
+    use rusqlite::types::Value;
+    let (kind, val) = tok.split_once(':')?;
+    match kind {
+        "bpm" => {
+            let (lo, hi) = parse_range(val, 2.0)?;
+            Some((
+                "(COALESCE((SELECT bpm FROM track_analysis WHERE track_id = tracks.track_id), \
+                 tracks.bpm) BETWEEN ? AND ?)"
+                    .to_string(),
+                vec![Value::Real(lo), Value::Real(hi)],
+            ))
+        }
+        "key" => {
+            let k = val.trim().to_uppercase();
+            if k.is_empty() {
+                return None;
+            }
+            Some((
+                "tracks.track_id IN (SELECT track_id FROM track_analysis WHERE UPPER(key_camelot) = ?)"
+                    .to_string(),
+                vec![Value::Text(k)],
+            ))
+        }
+        "energy" => {
+            let (lo, hi) = parse_energy_range(val)?;
+            Some((
+                "tracks.track_id IN (SELECT track_id FROM track_analysis WHERE energy BETWEEN ? AND ?)"
+                    .to_string(),
+                vec![Value::Real(lo), Value::Real(hi)],
+            ))
+        }
+        _ => None,
+    }
+}
+
+/// "120-128" → (120,128)、"128" → (128-pad, 128+pad)。
+fn parse_range(s: &str, pad: f64) -> Option<(f64, f64)> {
+    let s = s.trim();
+    if let Some((a, b)) = s.split_once('-') {
+        let lo: f64 = a.trim().parse().ok()?;
+        let hi: f64 = b.trim().parse().ok()?;
+        Some((lo.min(hi), lo.max(hi)))
+    } else {
+        let v: f64 = s.parse().ok()?;
+        Some((v - pad, v + pad))
+    }
+}
+
+/// energy はパーセント(>1)を 0..1 に正規化。範囲 or 単一値(±0.05)。
+fn parse_energy_range(s: &str) -> Option<(f64, f64)> {
+    let norm = |x: f64| if x > 1.0 { x / 100.0 } else { x };
+    let s = s.trim();
+    if let Some((a, b)) = s.split_once('-') {
+        let lo = norm(a.trim().parse().ok()?);
+        let hi = norm(b.trim().parse().ok()?);
+        Some((lo.min(hi), lo.max(hi)))
+    } else {
+        let v = norm(s.parse::<f64>().ok()?);
+        Some(((v - 0.05).max(0.0), (v + 0.05).min(1.0)))
+    }
+}
+
 /// ORDER BY 句を組み立てる。NULL は常に最後、track_id でタイブレーク。
 /// `prefix` は JOIN 時のテーブル別名 ("t." など)。`default` は sort_field が無効な時に丸ごと使う句。
 pub(super) fn build_order_by(
@@ -233,29 +298,33 @@ impl Database {
         use rusqlite::types::Value;
 
         const COLS: [&str; 6] = ["name", "artist", "album", "album_artist", "genre", "comments"];
-        let tokens: Vec<&str> = query.split_whitespace().collect();
         let order_by = build_order_by(sort_field, sort_order, "", "name COLLATE NOCASE ASC");
 
+        // 各トークンを AND 結合。bpm:/key:/energy: は track_analysis への絞り込み、
+        // それ以外はテキスト 6 列への部分一致 (OR)。バインド値は句の出現順に積む。
+        let mut clauses: Vec<String> = Vec::new();
         let mut bind: Vec<Value> = Vec::new();
-        let where_sql = if tokens.is_empty() {
-            "1=1".to_string()
-        } else {
-            tokens
+        for tok in query.split_whitespace() {
+            if let Some((clause, mut binds)) = parse_analysis_filter(tok) {
+                clauses.push(clause);
+                bind.append(&mut binds);
+                continue;
+            }
+            let pat = format!("%{}%", tok);
+            let group = COLS
                 .iter()
-                .map(|tok| {
-                    let pat = format!("%{}%", tok);
-                    let group = COLS
-                        .iter()
-                        .map(|c| {
-                            bind.push(Value::Text(pat.clone()));
-                            format!("{} LIKE ?", c)
-                        })
-                        .collect::<Vec<_>>()
-                        .join(" OR ");
-                    format!("({})", group)
+                .map(|c| {
+                    bind.push(Value::Text(pat.clone()));
+                    format!("{} LIKE ?", c)
                 })
                 .collect::<Vec<_>>()
-                .join(" AND ")
+                .join(" OR ");
+            clauses.push(format!("({})", group));
+        }
+        let where_sql = if clauses.is_empty() {
+            "1=1".to_string()
+        } else {
+            clauses.join(" AND ")
         };
         bind.push(Value::Integer(limit));
         bind.push(Value::Integer(offset));
