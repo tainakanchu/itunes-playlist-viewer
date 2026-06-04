@@ -213,6 +213,7 @@ mod tests {
             loudness_lufs: None,
             replaygain_db: None,
             vector: v,
+            peaks: Vec::new(),
         };
         let base = mk(1, vec![0.0, 0.0], 128.0, "8A");
         let cands = vec![

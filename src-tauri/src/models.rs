@@ -158,10 +158,13 @@ pub struct TrackAnalysis {
     pub energy: Option<f64>,
     /// EBU R128 統合ラウドネス (LUFS)。
     pub loudness_lufs: Option<f64>,
-    /// ReplayGain 相当のゲイン (dB)。再生時の音量正規化に使う (PR5)。
+    /// ReplayGain 相当のゲイン (dB)。再生時の音量正規化に使う。
     pub replaygain_db: Option<f64>,
     /// 類似度計算用の特徴ベクトル (正規化済み)。
     pub vector: Vec<f64>,
+    /// 波形オーバービュー (0..1 のピーク列)。一覧取得では空 (get_analysis でのみ充填)。
+    #[serde(default)]
+    pub peaks: Vec<f32>,
 }
 
 /// 解析進捗イベント (`analysis-progress`)。RipProgress と同じノリのタグ付き enum。

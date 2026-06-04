@@ -10,7 +10,8 @@ use super::Database;
 use crate::models::TrackAnalysis;
 
 /// 解析アルゴリズムのバージョン。ロジックを更新したら +1 して再解析を促す。
-pub const ANALYSIS_VERSION: i64 = 1;
+/// v2: 波形ピーク (peaks) を追加。
+pub const ANALYSIS_VERSION: i64 = 2;
 
 fn row_to_analysis(row: &rusqlite::Row) -> rusqlite::Result<TrackAnalysis> {
     let vector_json: Option<String> = row.get(9)?;
@@ -28,6 +29,8 @@ fn row_to_analysis(row: &rusqlite::Row) -> rusqlite::Result<TrackAnalysis> {
         loudness_lufs: row.get(7)?,
         replaygain_db: row.get(8)?,
         vector,
+        // peaks は一覧クエリでは読まない (重いため)。get_analysis で個別に充填する。
+        peaks: Vec::new(),
     })
 }
 
@@ -38,11 +41,12 @@ impl Database {
     /// 解析結果を挿入 / 更新する (track_id を主キーに upsert)。
     pub fn upsert_analysis(&self, a: &TrackAnalysis) -> Result<()> {
         let vector_json = serde_json::to_string(&a.vector).unwrap_or_else(|_| "[]".to_string());
+        let peaks_json = serde_json::to_string(&a.peaks).unwrap_or_else(|_| "[]".to_string());
         self.conn.execute(
             "INSERT INTO track_analysis
                 (track_id, version, analyzed_at, bpm, key_camelot, key_name,
-                 energy, loudness_lufs, replaygain_db, vector)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+                 energy, loudness_lufs, replaygain_db, vector, peaks)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
              ON CONFLICT(track_id) DO UPDATE SET
                 version = excluded.version,
                 analyzed_at = excluded.analyzed_at,
@@ -52,7 +56,8 @@ impl Database {
                 energy = excluded.energy,
                 loudness_lufs = excluded.loudness_lufs,
                 replaygain_db = excluded.replaygain_db,
-                vector = excluded.vector",
+                vector = excluded.vector,
+                peaks = excluded.peaks",
             params![
                 a.track_id,
                 a.version,
@@ -64,17 +69,34 @@ impl Database {
                 a.loudness_lufs,
                 a.replaygain_db,
                 vector_json,
+                peaks_json,
             ],
         )?;
         Ok(())
     }
 
-    /// 1 曲の解析結果を取得 (未解析なら None)。
+    /// 1 曲の解析結果を取得 (未解析なら None)。波形 peaks もここで充填する。
     pub fn get_analysis(&self, track_id: i64) -> Result<Option<TrackAnalysis>> {
         let sql = format!("SELECT {SELECT_COLS} FROM track_analysis WHERE track_id = ?1");
-        self.conn
+        let mut base = self
+            .conn
             .query_row(&sql, params![track_id], row_to_analysis)
-            .optional()
+            .optional()?;
+        if let Some(ref mut a) = base {
+            let peaks_json: Option<String> = self
+                .conn
+                .query_row(
+                    "SELECT peaks FROM track_analysis WHERE track_id = ?1",
+                    params![track_id],
+                    |r| r.get(0),
+                )
+                .optional()?
+                .flatten();
+            a.peaks = peaks_json
+                .and_then(|s| serde_json::from_str::<Vec<f32>>(&s).ok())
+                .unwrap_or_default();
+        }
+        Ok(base)
     }
 
     /// 解析済みの全曲を取得 (類似度計算の母集合に使う)。

@@ -33,6 +33,7 @@ pub fn analyze_path(path: &str, track_id: i64) -> Result<TrackAnalysis, String> 
         loudness_lufs: f.loudness_lufs,
         replaygain_db: f.replaygain_db,
         vector: f.vector,
+        peaks: f.peaks,
     })
 }
 

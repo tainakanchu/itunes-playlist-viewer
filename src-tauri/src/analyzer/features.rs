@@ -21,12 +21,19 @@ pub struct Features {
     pub loudness_lufs: Option<f64>,
     pub replaygain_db: Option<f64>,
     pub vector: Vec<f64>,
+    /// 波形オーバービュー (0..1 に正規化した max-abs 包絡、固定本数)。
+    pub peaks: Vec<f32>,
 }
+
+/// 波形表示用のピーク本数。
+const PEAK_BARS: usize = 160;
 
 /// ネイティブレートのモノラルサンプルから全特徴量を抽出する。
 pub fn extract(native_mono: &[f32], native_rate: u32) -> Features {
     // ラウドネスはネイティブレートのまま計測する (R128 はレート依存)。
     let (lufs, replaygain) = loudness(native_mono, native_rate);
+    // 波形オーバービューはフル解像度の max-abs 包絡から作る。
+    let peaks = compute_peaks(native_mono, PEAK_BARS);
 
     // スペクトル系は解析レートへ落としてから。
     let mono = downsample(native_mono, native_rate, ANALYSIS_RATE);
@@ -40,6 +47,7 @@ pub fn extract(native_mono: &[f32], native_rate: u32) -> Features {
             loudness_lufs: lufs,
             replaygain_db: replaygain,
             vector: Vec::new(),
+            peaks,
         };
     }
 
@@ -68,7 +76,37 @@ pub fn extract(native_mono: &[f32], native_rate: u32) -> Features {
         loudness_lufs: lufs,
         replaygain_db: replaygain,
         vector,
+        peaks,
     }
+}
+
+/// フル解像度サンプルを `n` 個のバケットに分け、各 max-abs を取って 0..1 に正規化。
+fn compute_peaks(samples: &[f32], n: usize) -> Vec<f32> {
+    if samples.is_empty() || n == 0 {
+        return Vec::new();
+    }
+    let bucket = (samples.len() as f64 / n as f64).ceil().max(1.0) as usize;
+    let mut peaks = Vec::with_capacity(n);
+    let mut i = 0;
+    while i < samples.len() && peaks.len() < n {
+        let end = (i + bucket).min(samples.len());
+        let mut m = 0.0f32;
+        for &s in &samples[i..end] {
+            let a = s.abs();
+            if a > m {
+                m = a;
+            }
+        }
+        peaks.push(m);
+        i = end;
+    }
+    let max = peaks.iter().copied().fold(0.0f32, f32::max);
+    if max > 0.0 {
+        for p in peaks.iter_mut() {
+            *p /= max;
+        }
+    }
+    peaks
 }
 
 /// ボックス平均による簡易ダウンサンプル (アンチエイリアス兼用)。`to >= from` なら無加工。
