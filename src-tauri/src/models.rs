@@ -138,6 +138,51 @@ pub struct GenreTagCount {
     pub count: i64,
 }
 
+// === Audio analysis (DJ 向け: BPM / key / energy / loudness / similarity) ===
+
+/// 1 曲の解析結果。`track_analysis` テーブルに 1:1 で保存される。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrackAnalysis {
+    pub track_id: i64,
+    /// 解析器のバージョン。アルゴリズム更新時に再解析判定へ使う。
+    pub version: i64,
+    pub analyzed_at: String,
+    /// 解析で推定した BPM。
+    pub bpm: Option<f64>,
+    /// Camelot 表記 (例 "8A")。ハーモニックミキシング用。
+    pub key_camelot: Option<String>,
+    /// 人間可読のキー名 (例 "A minor")。
+    pub key_name: Option<String>,
+    /// エネルギー (0..1)。体感の激しさ・推進力の近似。
+    pub energy: Option<f64>,
+    /// EBU R128 統合ラウドネス (LUFS)。
+    pub loudness_lufs: Option<f64>,
+    /// ReplayGain 相当のゲイン (dB)。再生時の音量正規化に使う (PR5)。
+    pub replaygain_db: Option<f64>,
+    /// 類似度計算用の特徴ベクトル (正規化済み)。
+    pub vector: Vec<f64>,
+}
+
+/// 解析進捗イベント (`analysis-progress`)。RipProgress と同じノリのタグ付き enum。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "kind")]
+pub enum AnalysisProgress {
+    Start { total: usize },
+    Item { track_id: i64, done: usize, total: usize, ok: bool },
+    Finished { analyzed: usize, failed: usize },
+}
+
+/// 解析状況のサマリ (バッジ表示用)。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalysisStatus {
+    /// 現行バージョンで解析済みの曲数。
+    pub analyzed: i64,
+    /// ファイルが存在する曲の総数 (解析対象母数)。
+    pub total: i64,
+}
+
 // === CD / ripping models ===
 
 /// 物理 CD ドライブから読み取った TOC + disc id。

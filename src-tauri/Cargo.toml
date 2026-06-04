@@ -33,6 +33,13 @@ sha1 = "0.10"
 base64 = "0.22"
 # Audio file tag reader (FLAC/MP3/AAC/WAV/etc.) for file import.
 lofty = "0.21"
+# Audio analysis (BPM / key / energy / loudness / similarity vector).
+# Pure-Rust stack so it builds on every OS with no native deps:
+#   rustfft = FFT, ebur128 = EBU R128 loudness, symphonia = decode (pinned to
+#   0.5 so it shares rodio's symphonia rather than pulling a second copy).
+rustfft = "6"
+ebur128 = "0.1"
+symphonia = { version = "0.5", features = ["all"] }
 
 # === Unix-only: MusicBrainz disc id via libdiscid (C lib comes from Nix/Brew/apt). ===
 # Skipped on Windows because libdiscid isn't trivially available via the standard

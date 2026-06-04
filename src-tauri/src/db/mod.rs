@@ -1,3 +1,4 @@
+pub mod analysis;
 pub mod playlists;
 pub mod schema;
 pub mod stats;
@@ -19,7 +20,11 @@ impl Database {
         let db_path = app_dir.join("library.db");
         let path_str = db_path.to_string_lossy().to_string();
         let conn = Connection::open(&db_path)?;
-        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")?;
+        // busy_timeout: バックグラウンド解析ワーカと UI コマンドが別コネクションで
+        // 同時アクセスしても SQLITE_BUSY で即失敗しないように待つ。
+        conn.execute_batch(
+            "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=5000;",
+        )?;
         let db = Database {
             conn,
             path: path_str,
