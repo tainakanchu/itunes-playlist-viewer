@@ -16,6 +16,17 @@ pub enum RepeatMode {
     One,
 }
 
+/// 「いま終わった (停止/差し替えられた) 曲」の再生実績の要約。
+/// コマンド層がこれを見て play_count / skip_count を更新する。
+#[derive(Debug, Clone, Copy)]
+pub struct PlayReport {
+    pub track_id: i64,
+    /// 実際に聴いていた長さ (ms、durationを超えない)。
+    pub played_ms: u64,
+    /// その曲の長さ (ms、不明なら 0)。
+    pub duration_ms: u64,
+}
+
 pub struct AudioPlayer {
     _stream: Option<OutputStream>,
     stream_handle: Option<OutputStreamHandle>,
@@ -68,8 +79,15 @@ impl AudioPlayer {
         }
     }
 
-    pub fn play(&mut self, file_path: &str, track_id: i64, duration_ms: u64) -> Result<(), String> {
-        self.stop_internal();
+    /// 新しい曲を再生する。差し替え前に再生していた曲があれば、その実績を
+    /// `PlayReport` として返す (コマンド層が play/skip カウントに反映する)。
+    pub fn play(
+        &mut self,
+        file_path: &str,
+        track_id: i64,
+        duration_ms: u64,
+    ) -> Result<Option<PlayReport>, String> {
+        let report = self.stop_internal();
 
         let handle = self
             .stream_handle
@@ -99,7 +117,7 @@ impl AudioPlayer {
         self.accumulated_position_ms = 0;
         self.finished_for_advance = false;
 
-        Ok(())
+        Ok(report)
     }
 
     pub fn pause(&mut self) {
@@ -118,11 +136,31 @@ impl AudioPlayer {
         }
     }
 
-    pub fn stop(&mut self) {
-        self.stop_internal();
+    /// 明示停止。停止した曲の再生実績を返す。
+    pub fn stop(&mut self) -> Option<PlayReport> {
+        self.stop_internal()
     }
 
-    fn stop_internal(&mut self) {
+    /// 現在の sink を止めて状態をクリアし、停止直前まで再生していた曲の
+    /// 実績 (`PlayReport`) を返す。再生していなければ None。
+    fn stop_internal(&mut self) -> Option<PlayReport> {
+        let report = self.current_track_id.map(|tid| {
+            let played = self.accumulated_position_ms
+                + self
+                    .play_started_at
+                    .map(|t| t.elapsed().as_millis() as u64)
+                    .unwrap_or(0);
+            let played = if self.duration_ms > 0 {
+                played.min(self.duration_ms)
+            } else {
+                played
+            };
+            PlayReport {
+                track_id: tid,
+                played_ms: played,
+                duration_ms: self.duration_ms,
+            }
+        });
         if let Some(sink) = self.sink.take() {
             sink.stop();
         }
@@ -131,6 +169,7 @@ impl AudioPlayer {
         self.play_started_at = None;
         self.accumulated_position_ms = 0;
         self.finished_for_advance = false;
+        report
     }
 
     pub fn seek(&mut self, position_ms: u64) {
