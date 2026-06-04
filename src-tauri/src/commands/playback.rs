@@ -33,6 +33,7 @@ pub fn play_track(
     app: AppHandle,
     track_id: i64,
     player: tauri::State<'_, Mutex<AudioPlayer>>,
+    analyzer: tauri::State<'_, crate::analyzer::Analyzer>,
 ) -> Result<(), String> {
     let db = open_db(&app)?;
     let track = db
@@ -53,6 +54,8 @@ pub fn play_track(
     apply_report(&db, report);
 
     db.add_recent_track(track_id).map_err(|e| e.to_string())?;
+    // 再生した曲 = よく使う曲なので、未解析なら裏で解析しておく。
+    analyzer.submit(vec![track_id], false);
     Ok(())
 }
 

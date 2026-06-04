@@ -1,3 +1,4 @@
+mod analyzer;
 mod artwork;
 mod audio;
 mod cd_ripper;
@@ -13,6 +14,8 @@ mod smtc;
 mod updater;
 
 use std::sync::Mutex;
+
+use tauri::Manager;
 
 /// アートワークが無い / 読めない場合の 404 レスポンス。
 fn not_found() -> tauri::http::Response<Vec<u8>> {
@@ -56,6 +59,9 @@ pub fn run() {
         .manage(audio_player)
         .manage(smtc_state)
         .setup(|app| {
+            // バックグラウンド音声解析ワーカを起動して managed state に載せる。
+            app.manage(analyzer::Analyzer::new(app.handle().clone()));
+
             // SMTC is best-effort: failure here shouldn't block app launch.
             let handle = app.handle().clone();
             if let Err(e) = smtc::init(&handle) {
@@ -111,6 +117,11 @@ pub fn run() {
             commands::ripping::lookup_release_by_toc,
             commands::ripping::compute_disc_id,
             commands::ripping::rip_cd,
+            // audio analysis
+            commands::analysis::analyze_tracks,
+            commands::analysis::get_analysis,
+            commands::analysis::get_analysis_status,
+            commands::analysis::get_all_analyses,
             // declarative playlist rules
             commands::rules::validate_rules,
             commands::rules::preview_rules,
