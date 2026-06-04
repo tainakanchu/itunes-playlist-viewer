@@ -349,6 +349,8 @@ export function TrackTable({ onLoadMore, onTracksChanged, onEditTrack }: TrackTa
         return <span className="cb-fmono cb-dim">{t.trackNumber ?? ""}</span>;
       case "dateAdded":
         return <span className="cb-fmono cb-dim">{(t.dateAdded ?? "").slice(0, 10)}</span>;
+      case "lastPlayed":
+        return <span className="cb-fmono cb-dim">{(t.lastPlayed ?? "").slice(0, 10)}</span>;
     }
   };
 

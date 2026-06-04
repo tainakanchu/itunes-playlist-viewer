@@ -32,6 +32,7 @@ const SORT_OPTIONS: { field: SortField; label: string }[] = [
   { field: "totalTimeMs", label: "Time" },
   { field: "trackNumber", label: "Track #" },
   { field: "dateAdded", label: "Date Added" },
+  { field: "lastPlayed", label: "Last Played" },
 ];
 
 const VIEW_TITLE: Record<ViewMode, string> = {

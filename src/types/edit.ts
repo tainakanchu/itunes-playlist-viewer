@@ -42,7 +42,8 @@ export type SortField =
   | "bpm"
   | "trackNumber"
   | "totalTimeMs"
-  | "dateAdded";
+  | "dateAdded"
+  | "lastPlayed";
 
 export type SortOrder = "asc" | "desc";
 
@@ -59,7 +60,8 @@ export type FieldKey =
   | "time"
   | "albumArtist"
   | "trackNumber"
-  | "dateAdded";
+  | "dateAdded"
+  | "lastPlayed";
 
 export interface FieldDef {
   key: FieldKey;
@@ -81,6 +83,7 @@ export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
   albumArtist: { key: "albumArtist", label: "Album Artist", width: 150, sortField: "albumArtist" },
   trackNumber: { key: "trackNumber", label: "#", width: 44, sortField: "trackNumber" },
   dateAdded: { key: "dateAdded", label: "Date Added", width: 104, sortField: "dateAdded" },
+  lastPlayed: { key: "lastPlayed", label: "Last Played", width: 104, sortField: "lastPlayed" },
 };
 
 /// ColumnPicker の "Available" 列挙順。
@@ -95,6 +98,7 @@ export const ALL_FIELDS: FieldKey[] = [
   "albumArtist",
   "trackNumber",
   "dateAdded",
+  "lastPlayed",
 ];
 
 /// 既定の表示列（順序 = 表示順）。
