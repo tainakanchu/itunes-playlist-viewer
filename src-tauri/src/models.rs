@@ -33,6 +33,8 @@ pub struct Track {
     pub track_number: Option<i64>,
     pub track_count: Option<i64>,
     pub file_exists: bool,
+    /// アプリ内で最後に再生した時刻 (ISO8601 UTC)。未再生なら None。
+    pub last_played: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

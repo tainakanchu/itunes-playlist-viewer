@@ -25,6 +25,30 @@ impl Database {
             path: path_str,
         };
         schema::create_tables(&db.conn)?;
+        migrate(&db.conn)?;
         Ok(db)
     }
+}
+
+/// 指定テーブルに列が存在するか (PRAGMA table_info)。
+fn column_exists(conn: &Connection, table: &str, column: &str) -> Result<bool> {
+    // table 名はコード内リテラルのみ (ユーザー入力ではない) なので format! で安全。
+    let mut stmt = conn.prepare(&format!("PRAGMA table_info({table})"))?;
+    let mut rows = stmt.query([])?;
+    while let Some(row) = rows.next()? {
+        let name: String = row.get(1)?;
+        if name == column {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// `CREATE TABLE IF NOT EXISTS` では既存 DB に新カラムが追加されないため、
+/// 後付けカラムは冪等な `ALTER TABLE ADD COLUMN` でここに集約する。
+fn migrate(conn: &Connection) -> Result<()> {
+    if !column_exists(conn, "tracks", "last_played")? {
+        conn.execute_batch("ALTER TABLE tracks ADD COLUMN last_played TEXT;")?;
+    }
+    Ok(())
 }

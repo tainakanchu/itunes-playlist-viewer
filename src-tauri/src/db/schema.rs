@@ -31,7 +31,8 @@ pub fn create_tables(conn: &Connection) -> Result<()> {
             disc_count INTEGER,
             track_number INTEGER,
             track_count INTEGER,
-            file_exists INTEGER DEFAULT 1
+            file_exists INTEGER DEFAULT 1,
+            last_played TEXT
         );
 
         CREATE TABLE IF NOT EXISTS playlists (
