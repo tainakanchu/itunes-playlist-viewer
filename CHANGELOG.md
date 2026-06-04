@@ -5,29 +5,77 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+各バージョンは **日本語** と **English** の 2 ブロックを併記します。
+Each release is documented in both Japanese and English.
+
 ## [Unreleased]
 
 ## [v0.0.4] - 2026-05-30
 
-### Added
+### 日本語
+
+#### 追加
+- ジャンル / 語句フィルタチップ: ジャンルタグをクリックすると、検索を置き換える代わりに削除可能なフィルタチップとして追加されるようになりました。複数のチップは AND 条件として積み重なり、それぞれ個別に削除できます（「すべてクリア」もあり）。フリーテキストの検索ボックスとも組み合わせられます。
+
+#### 変更
+- 検索がクエリをスペースで分割し、各トークンを AND 結合するようになりました。各トークンは 名前 / アーティスト / アルバム / アルバムアーティスト / ジャンル / コメント のいずれかに一致する必要があります。（以前は空白を含む文字列全体が 1 つの部分文字列として一致する必要がありました。）
+- シャッフルが実際のシャッフル再生順（Fisher–Yates）を事前計算するようになりました。これにより **Up Next** リストが、元の順序ではなく実際にこれから再生されるシャッフル後のトラックを反映します。シャッフルをオンにすると未再生の末尾だけを再シャッフルし、リピート（全曲）で 1 周すると次の周回用に再シャッフルします。
+- GitHub Release の本文に、そのタグの CHANGELOG セクションを含め、その下に自動生成の "What's Changed" を付与するようになりました。
+
+---
+
+### English
+
+#### Added
 - Genre / term filter chips: clicking a genre tag now adds it as a removable filter chip instead of replacing the search. Multiple chips stack as AND conditions, each removable individually (with a "clear all"), and they combine with the free-text search box.
 
-### Changed
+#### Changed
 - Search now splits the query on spaces and ANDs the tokens — each token must match somewhere in name / artist / album / album artist / genre / comments. (Previously the whole string, spaces included, had to appear as one substring.)
 - Shuffle now precomputes a real shuffled play order (Fisher–Yates), so the **Up Next** list reflects the actual upcoming shuffled tracks instead of the original order. Turning shuffle on reshuffles only the not-yet-played tail; a full pass under repeat-all reshuffles for the next lap.
 - The GitHub Release body now includes this CHANGELOG section for the tag, followed by the auto-generated "What's Changed".
 
 ## [v0.0.3] - 2026-05-30
 
-### Added
+### 日本語
+
+#### 追加
+- アルバムアートワーク: 各トラックのファイルから埋め込みカバーアート（FLAC picture / MP3 APIC / MP4 covr など）を読み込み、List のサムネイル、Covers カード、プレイヤーバー、Now Playing レール、クレート / Up Next、Album / Artist カードに表示するようになりました。埋め込みアートがない（またはファイルが見つからない）トラックは、従来の生成グラデーション + グリフのプレースホルダのままです。`artwork://` URI スキームで遅延配信し、表示中のアイテムだけを読み込みます（webview が URL 単位でキャッシュ）。
+
+#### 修正
+- × ボタンで必ずウィンドウが閉じるようになりました。新しいリリースが公開されていると、終了時の「アップデートあり」ダイアログが最初のクローズを（`preventDefault` で）横取りしていた挙動を取り除きました。アップデートはウィンドウ上部の非ブロッキングなバナーで引き続き通知されます。
+
+---
+
+### English
+
+#### Added
 - Album artwork: embedded cover art (FLAC picture / MP3 APIC / MP4 covr, etc.) is now read from each track's file and shown in the List thumbnails, Covers cards, player bar, Now Playing rail, crate / up-next, and Album / Artist cards. Tracks without embedded art (or with a missing file) keep the generated gradient + glyph placeholder. Served lazily via an `artwork://` URI scheme so only visible items are read, and the webview caches by URL.
 
-### Fixed
+#### Fixed
 - The window now always closes on the × button. The close-time "update available" dialog was intercepting the first close (via `preventDefault`) whenever a newer release was published; that interception is removed. Updates are still surfaced by the non-blocking banner at the top of the window.
 
 ## [v0.0.2] - 2026-05-29
 
-### Changed
+### 日本語
+
+#### 変更
+- UI を **Cratebox**（アート志向 / DJ テーマ）に刷新しました:
+  - ティール基調のパレットと Lucide 風のラインアイコンセット（絵文字アイコンを全廃）。
+  - 3 ペイン構成: サイドバー / 中央 / **右レール** + フル幅のプレイヤーバー。
+  - **List** / **Covers** ビューモード（ツールバーのセグメント）。
+  - List 行: アルバムアートのプレースホルダ（生成グラデーション + 先頭グリフ）、BPM の色分け、ジャンルのピルチップ、インライン ★ 評価。
+  - **カラムピッカー** ポップオーバー: 列のドラッグ並べ替え、表示項目のトグル、行高スライダー（32〜64px）、アートワークサイズ（なし / 豆 / 小）— いずれも永続化。
+  - サイドの **ステージングクレート** レール（Now Playing / Up Next / Crate）で選曲を組み立て、プレイリストとして保存; プレイヤーには波形シークバー。
+
+#### 修正
+- トラックのソートをバックエンド（SQLite の `ORDER BY`）で行うようにし、結果セット全体が正しく並ぶようになりました。以前はメモリに読み込み済みの行だけがソートされていたため、末尾までスクロールして戻るまではソートでトラックが欠落して見えていました。
+- プレイリストからのトラック削除を、表示インデックスではなくトラック ID で対象指定するようにし、リストがソートされているときに誤った行を削除する不具合を修正しました。
+
+---
+
+### English
+
+#### Changed
 - Redesigned the UI to the **Cratebox** art-forward / DJ theme:
   - Teal palette and a Lucide-style line-icon set (all emoji icons removed).
   - Three-pane shell: sidebar / center / **right rail** + full-width player bar.
@@ -36,74 +84,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Column picker** popover: drag-reorder columns, toggle fields, row-height slider (32–64 px), artwork size (none / 豆 / 小) — persisted.
   - **Staging Crate** side rail (Now Playing / Up Next / Crate) for building a selection and saving it as a playlist; waveform seek bar in the player.
 
-### Fixed
+#### Fixed
 - Track sorting is now applied in the backend (SQLite `ORDER BY`) so the entire result set orders correctly. Previously only the rows already paged into memory were sorted, so sorting appeared to drop tracks until you scrolled to the bottom and back.
 - Removing a track from a playlist now targets it by track id instead of display index, fixing wrong removals when the list was sorted.
 
 ## [v0.0.1] - 2026-05-29
 
-Initial public release. A self-contained iTunes-style music manager that imports / edits / plays / exports your library, rips CDs with MusicBrainz lookup, and builds playlists declaratively from a YAML rules file.
+### 日本語
 
-### Library I/O
-- Import and export iTunes `Library.xml` (Apple plist format) — interoperable with rekordbox / Serato / Traktor.
-- Add audio files (FLAC / MP3 / M4A / WAV / Ogg / Opus / AIFF) by drag-pick; tags are read with `lofty`.
-- SQLite (WAL) backing store with indices for fast search and big libraries (10,000+ tracks tested).
+最初の公開リリース。ライブラリのインポート / 編集 / 再生 / エクスポート、MusicBrainz 照会付きの CD リッピング、YAML ルールからの宣言的プレイリスト生成までを単体で完結させる、iTunes ライクな音楽マネージャです。実装した主な機能をおおまかに列挙します:
 
-### CD ripping
-- Detect TOC + MusicBrainz disc-id via libdiscid (Linux / macOS).
-- Look the disc up on MusicBrainz; pick a release candidate (with Cover Art Archive preview).
-- Rip with cdparanoia → encode to FLAC / ALAC / MP3 320 / WAV via flac / ffmpeg / lame.
-- Live per-track progress; ripped files are auto-added to the library.
+- **ライブラリ入出力** — iTunes `Library.xml`（Apple plist 形式）のインポート / エクスポート、FLAC / MP3 / M4A / WAV / Ogg / Opus / AIFF の追加、1 万曲以上で検証した SQLite (WAL) キャッシュ。
+- **再生** — ローカル再生（rodio + symphonia）、キューの自動送り、シャッフル、リピート（オフ / 全曲 / 1 曲）、ボリューム、Windows SMTC のメディアキー連携。
+- **ライブラリビュー** — All Tracks（仮想スクロール）、Albums、Artists、Recently Played、フォルダ階層のプレイリストツリー。
+- **トラック編集** — ソート可能なカラム、カラムピッカー、インライン ★ 評価、クリック可能なジャンルチップ、全メタデータを編集できる Get Info ダイアログ。
+- **CD リッピング** — TOC + MusicBrainz ディスク照会、Cover Art Archive プレビュー、FLAC / ALAC / MP3 320 / WAV への進捗表示付きリッピング。
+- **宣言的プレイリスト** — YAML ルール（条件・ジェネレータ・テンプレート）をライブラリにコンパイルし、アプリ内エディタ（検証 / プレビュー / 適用）で操作。
+- **アップデート** — 新しい GitHub Release の公開時に、起動バナーと終了時ダイアログで通知。
+- **キーボードショートカット** — Space / Enter / J / K / S / R / 音量 / 検索 / Get Info など。
+- **ビルド & 開発** — Nix flake によるツールチェーン、タグ push で GitHub Actions が `.exe` + MSI + NSIS インストーラをビルド。
 
-### Library views
-- All Tracks (virtualized, 10k+ rows smooth).
-- Albums view: card grid grouped by `album + albumArtist`, ▶ Play Album, inline tracklist on expand.
-- Artists view: same but grouped by artist, with Album column.
-- Recently Played view.
-- Playlist tree with folder hierarchy.
+---
 
-### Track editing
-- Sortable columns (12 columns including Album Artist, Year, Date Added) with persistent ▲ / ▼.
-- Column picker (⚙︎ icon) with `localStorage`-persisted visibility.
-- Inline ★ rating; click to set 1–5 / 0.
-- Genre column shows space-separated tags as clickable chips; chip click drops the tag into the search bar.
-- Get Info / Cmd+I dialog: edit every track metadata field.
-- Bulk genre tag add / remove via the row context menu.
+### English
 
-### Playback
-- ⏮ ⏯ ⏹ ⏭ + 🔀 shuffle + 🔁 / 🔂 repeat (off / all / one) + 🔊 volume.
-- Playback queue with auto-advance (500 ms polling).
-- Windows SMTC integration: Now Playing widget + media keys (Play / Pause / Toggle / Next / Prev / Stop).
-- Local file playback via rodio + symphonia (FLAC / MP3 / AAC / Vorbis / WAV / etc.).
+Initial public release. A self-contained, iTunes-style music manager that imports / edits / plays / exports your library, rips CDs with MusicBrainz lookup, and builds playlists declaratively from a YAML rules file. A rough list of the main features shipped:
 
-### Declarative playlists
-- YAML rules: per-playlist conditions (`all` / `any` / `not` + field operators + `inPlaylist` references).
-- Generators: `bpmRange`, `ranges`, `tags`; reusable `templates`; namespace + folder hierarchy.
-- In-app CodeMirror YAML editor with Validate / Preview (tree + counts) / Apply.
-- Apply writes generated folders and playlists into the SQLite store so they show up in the sidebar and export with the next `Library.xml`.
-
-### Updates
-- Update banner on app launch if a newer GitHub Release is published.
-- Close-time dialog: "閉じる前にアップデート？" — first close intercept opens the release page or "Later".
-
-### Keyboard shortcuts
-| Key | Action |
-| --- | --- |
-| Space | Play / Pause |
-| Enter | Play first selected |
-| J / K | Previous / Next |
-| S | Shuffle toggle |
-| R | Cycle repeat mode |
-| ↑ / ↓ | Volume ±5% |
-| `/` or Cmd/Ctrl+F | Focus search |
-| Cmd/Ctrl+L | Library home |
-| Cmd/Ctrl+I | Get Info on selection |
-| Esc | Blur input |
-
-### Build & dev
-- Nix flake providing the full toolchain: Rust + Node + GTK / WebKit / ALSA / dbus + cdparanoia / libdiscid / libclang + flac / lame / ffmpeg.
-- GitHub Actions workflow building `.exe` + MSI + NSIS installer on `windows-latest`; tag-triggered releases attach the installer set automatically.
-- Persistent UI settings (sort, columns, volume, shuffle, repeat) via zustand `persist` → `localStorage`.
+- **Library I/O** — import / export iTunes `Library.xml` (Apple plist format); add FLAC / MP3 / M4A / WAV / Ogg / Opus / AIFF files; SQLite (WAL) cache tested on 10,000+ tracks.
+- **Playback** — local playback (rodio + symphonia) with queue auto-advance, shuffle, repeat (off / all / one), and volume; Windows SMTC media-key integration.
+- **Library views** — All Tracks (virtualized), Albums, Artists, Recently Played, and a folder-based playlist tree.
+- **Track editing** — sortable columns, column picker, inline ★ rating, clickable genre chips, and a Get Info dialog for every metadata field.
+- **CD ripping** — TOC + MusicBrainz disc lookup, Cover Art Archive preview, rip to FLAC / ALAC / MP3 320 / WAV with live progress.
+- **Declarative playlists** — YAML rules (conditions, generators, templates) compiled into the library, with an in-app editor (validate / preview / apply).
+- **Updates** — startup banner + close-time dialog when a newer GitHub Release is published.
+- **Keyboard shortcuts** — Space / Enter / J / K / S / R / volume / search / Get Info, etc.
+- **Build & dev** — Nix flake toolchain; GitHub Actions builds the `.exe` + MSI + NSIS installers on tag push.
 
 [Unreleased]: https://github.com/tainakanchu/itunes-playlist-viewer/compare/v0.0.4...HEAD
 [v0.0.4]: https://github.com/tainakanchu/itunes-playlist-viewer/compare/v0.0.3...v0.0.4
