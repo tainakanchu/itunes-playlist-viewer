@@ -17,6 +17,11 @@ export interface SimilarOpts {
   energyTol?: number;
 }
 
+/// crate 等の track_id 列を貪欲最近傍で「滑らかな並び」に並べ替えて返す。
+export async function buildSmoothOrder(trackIds: number[]): Promise<number[]> {
+  return invoke("build_smooth_order", { trackIds });
+}
+
 /// track_id に似た曲を距離昇順で取得する。
 export async function getSimilar(
   trackId: number,

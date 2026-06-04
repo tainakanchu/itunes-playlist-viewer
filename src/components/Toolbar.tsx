@@ -229,7 +229,7 @@ export function Toolbar({ onLibraryChanged, onOpenRipDialog, onOpenRulesPanel }:
           <input
             id="search-input"
             type="text"
-            placeholder="搜尋 / Search title, artist, album…  (/)"
+            placeholder="Search… or bpm:120-128  key:8A  energy:60-100  (/)"
             defaultValue={searchQuery}
             onChange={handleSearchChange}
             onKeyDown={handleSearchKeyDown}

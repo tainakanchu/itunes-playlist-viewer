@@ -83,6 +83,7 @@ interface AppState extends PersistedSettings {
   addToCrate: (track: Track) => void;
   removeFromCrate: (trackId: number) => void;
   reorderCrate: (from: number, to: number) => void;
+  setCrateOrder: (ids: number[]) => void;
   clearCrate: () => void;
 
   // Persisted settings
@@ -192,6 +193,21 @@ export const useStore = create<AppState>()(
           const next = [...state.crate];
           const [m] = next.splice(from, 1);
           next.splice(to, 0, m);
+          return { crate: next };
+        }),
+      // 与えられた id 順に crate を並べ替える (id に無い曲は元順で末尾に残す)。
+      setCrateOrder: (ids) =>
+        set((state) => {
+          const byId = new Map(state.crate.map((t) => [t.trackId, t]));
+          const seen = new Set(ids);
+          const next: Track[] = [];
+          for (const id of ids) {
+            const t = byId.get(id);
+            if (t) next.push(t);
+          }
+          for (const t of state.crate) {
+            if (!seen.has(t.trackId)) next.push(t);
+          }
           return { crate: next };
         }),
       clearCrate: () => set({ crate: [] }),

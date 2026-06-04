@@ -35,6 +35,7 @@ export function RightRail({ onPlaylistsChanged }: RightRailProps) {
     addToCrate,
     removeFromCrate,
     reorderCrate,
+    setCrateOrder,
     clearCrate,
     shuffle,
     repeat,
@@ -152,6 +153,17 @@ export function RightRail({ onPlaylistsChanged }: RightRailProps) {
     await playbackApi.setQueue(ids, 0);
     await playbackApi.playTrack(ids[0]);
   }, [crate]);
+
+  // 貪欲最近傍で crate を滑らかな並びへ (解析済みの曲が対象)。
+  const handleSmoothOrder = useCallback(async () => {
+    if (crate.length < 3) return;
+    try {
+      const ids = await analysisApi.buildSmoothOrder(crate.map((t) => t.trackId));
+      setCrateOrder(ids);
+    } catch (err) {
+      console.error("Failed to build smooth order:", err);
+    }
+  }, [crate, setCrateOrder]);
 
   const playFromCrate = useCallback(async (track: Track) => {
     if (!track.fileExists) return;
@@ -282,6 +294,16 @@ export function RightRail({ onPlaylistsChanged }: RightRailProps) {
                   {" · "}
                   <b>{fmtTotal(crate)}</b>
                 </>
+              )}
+              {crate.length >= 3 && (
+                <button
+                  className="cb-clear"
+                  onClick={handleSmoothOrder}
+                  title="解析済みの曲を貪欲最近傍で滑らかな並びに"
+                >
+                  {" "}
+                  smooth
+                </button>
               )}
               {crate.length > 0 && (
                 <button className="cb-clear" onClick={clearCrate} title="Clear crate">
