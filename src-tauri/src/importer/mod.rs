@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use lofty::file::{AudioFile, TaggedFileExt};
 use lofty::probe::Probe;
-use lofty::tag::Accessor;
+use lofty::tag::{Accessor, ItemKey, Tag};
 
 use crate::db::Database;
 use crate::itunes_xml::writer::path_to_file_url;
@@ -83,6 +83,9 @@ fn read_and_insert(db: &Database, path: &Path, library_root: Option<&Path>) -> R
     let disc_number = tag.and_then(|t| t.disk()).map(|n| n as i64);
     let disc_count = tag.and_then(|t| t.disk_total()).map(|n| n as i64);
 
+    // BPM タグ (TBPM/tmpo/Vorbis BPM)。挿入後に set_track_bpm で埋める。
+    let bpm = tag.and_then(read_bpm);
+
     // Fall back to filename if no title tag.
     let fallback_title = path
         .file_stem()
@@ -123,22 +126,37 @@ fn read_and_insert(db: &Database, path: &Path, library_root: Option<&Path>) -> R
     }
     let location_url = path_to_file_url(&location_path);
 
-    db.add_imported_track(
-        title.as_deref(),
-        artist.as_deref(),
-        album_artist.as_deref().or(artist.as_deref()),
-        album.as_deref(),
-        genre.as_deref(),
-        year,
-        track_number,
-        track_count,
-        disc_number,
-        disc_count,
-        total_time_ms,
-        &location_path,
-        &location_url,
-    )
-    .map_err(|e| format!("db insert failed: {}", e))?;
+    let track_id = db
+        .add_imported_track(
+            title.as_deref(),
+            artist.as_deref(),
+            album_artist.as_deref().or(artist.as_deref()),
+            album.as_deref(),
+            genre.as_deref(),
+            year,
+            track_number,
+            track_count,
+            disc_number,
+            disc_count,
+            total_time_ms,
+            &location_path,
+            &location_url,
+        )
+        .map_err(|e| format!("db insert failed: {}", e))?;
+
+    if let Some(b) = bpm {
+        let _ = db.set_track_bpm(track_id, b);
+    }
 
     Ok(())
+}
+
+/// タグから BPM を読む。TBPM/tmpo (IntegerBpm) を優先し、無ければ Vorbis "BPM"。
+/// "128" / "128.00" の両方を許容し、四捨五入して正の整数のみ採用する。
+fn read_bpm(tag: &Tag) -> Option<i64> {
+    tag.get_string(&ItemKey::IntegerBpm)
+        .or_else(|| tag.get_string(&ItemKey::Bpm))
+        .and_then(|s| s.trim().parse::<f64>().ok())
+        .map(|f| f.round() as i64)
+        .filter(|&n| n > 0)
 }
