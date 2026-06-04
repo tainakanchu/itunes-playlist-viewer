@@ -95,6 +95,40 @@ fn passes(base: &TrackAnalysis, c: &TrackAnalysis, opts: &SimilarOpts) -> bool {
     true
 }
 
+/// 貪欲最近傍で「滑らかな並び」を作る (A→B の流れを作る DJ セット用)。
+/// 先頭から始め、毎回いちばん近い未訪問曲を次に置く。O(n^2) だが crate 規模なら十分。
+pub fn smooth_order(items: &[(i64, Vec<f64>)]) -> Vec<i64> {
+    let n = items.len();
+    if n <= 2 {
+        return items.iter().map(|(id, _)| *id).collect();
+    }
+    let mut visited = vec![false; n];
+    let mut order = Vec::with_capacity(n);
+    let mut cur = 0usize;
+    visited[0] = true;
+    order.push(items[0].0);
+    for _ in 1..n {
+        let mut best: Option<usize> = None;
+        let mut best_d = f64::MAX;
+        for (j, visited_j) in visited.iter().enumerate() {
+            if *visited_j {
+                continue;
+            }
+            let d = euclidean(&items[cur].1, &items[j].1);
+            if d < best_d {
+                best_d = d;
+                best = Some(j);
+            }
+        }
+        if let Some(j) = best {
+            visited[j] = true;
+            order.push(items[j].0);
+            cur = j;
+        }
+    }
+    order
+}
+
 /// base に似た候補を距離昇順で最大 `limit` 件返す ((track_id, distance))。
 pub fn rank_similar(
     base: &TrackAnalysis,
@@ -152,6 +186,18 @@ mod tests {
     fn euclidean_basic() {
         assert!((euclidean(&[0.0, 0.0], &[3.0, 4.0]) - 5.0).abs() < 1e-9);
         assert_eq!(euclidean(&[], &[]), 0.0);
+    }
+
+    #[test]
+    fn smooth_order_is_nearest_neighbor_chain() {
+        // 1D 上に 0,10,1,11 を置くと 0→1→10→11 の順に並ぶはず。
+        let items = vec![
+            (1i64, vec![0.0]),
+            (2, vec![10.0]),
+            (3, vec![1.0]),
+            (4, vec![11.0]),
+        ];
+        assert_eq!(smooth_order(&items), vec![1, 3, 2, 4]);
     }
 
     #[test]

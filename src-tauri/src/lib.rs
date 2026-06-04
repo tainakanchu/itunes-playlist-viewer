@@ -123,6 +123,7 @@ pub fn run() {
             commands::analysis::get_analysis_status,
             commands::analysis::get_all_analyses,
             commands::analysis::get_similar,
+            commands::analysis::build_smooth_order,
             // declarative playlist rules
             commands::rules::validate_rules,
             commands::rules::preview_rules,

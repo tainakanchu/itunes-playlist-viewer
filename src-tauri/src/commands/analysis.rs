@@ -1,6 +1,6 @@
 use tauri::AppHandle;
 
-use crate::analyzer::similarity::{rank_similar, SimilarOpts};
+use crate::analyzer::similarity::{rank_similar, smooth_order, SimilarOpts};
 use crate::analyzer::Analyzer;
 use crate::commands::library::open_db;
 use crate::models::{AnalysisStatus, SimilarHit, TrackAnalysis};
@@ -71,4 +71,22 @@ pub fn get_similar(
         }
     }
     Ok(hits)
+}
+
+/// crate 等の track_id 列を貪欲最近傍で「滑らかな並び」に並べ替えて返す。
+/// 解析済みの曲だけを並べ替え、未解析の曲は元の順序で末尾に付ける。
+#[tauri::command]
+pub fn build_smooth_order(app: AppHandle, track_ids: Vec<i64>) -> Result<Vec<i64>, String> {
+    let db = open_db(&app)?;
+    let mut with_vec: Vec<(i64, Vec<f64>)> = Vec::new();
+    let mut without: Vec<i64> = Vec::new();
+    for id in &track_ids {
+        match db.get_analysis(*id) {
+            Ok(Some(a)) if !a.vector.is_empty() => with_vec.push((*id, a.vector)),
+            _ => without.push(*id),
+        }
+    }
+    let mut ordered = smooth_order(&with_vec);
+    ordered.extend(without);
+    Ok(ordered)
 }
