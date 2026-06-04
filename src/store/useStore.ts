@@ -26,6 +26,8 @@ interface PersistedSettings {
   volume: number;
   shuffle: boolean;
   repeat: RepeatMode;
+  // ReplayGain（音量正規化）を有効にするか
+  replayGain: boolean;
   // 直近に「プレイリストへ追加」したプレイリストID（新しい順 / 最大 MAX_RECENT_PLAYLISTS 件）
   recentPlaylistIds: number[];
 }
@@ -100,6 +102,7 @@ interface AppState extends PersistedSettings {
   setVolume: (v: number) => void;
   setShuffle: (on: boolean) => void;
   setRepeat: (mode: RepeatMode) => void;
+  setReplayGain: (on: boolean) => void;
   pushRecentPlaylist: (id: number) => void;
 
   // Analysis
@@ -142,6 +145,7 @@ export const useStore = create<AppState>()(
       volume: 1.0,
       shuffle: false,
       repeat: "off",
+      replayGain: false,
       recentPlaylistIds: [],
 
       setViewMode: (mode) => set({ viewMode: mode }),
@@ -244,6 +248,7 @@ export const useStore = create<AppState>()(
       setVolume: (volume) => set({ volume }),
       setShuffle: (shuffle) => set({ shuffle }),
       setRepeat: (repeat) => set({ repeat }),
+      setReplayGain: (replayGain) => set({ replayGain }),
       pushRecentPlaylist: (id) =>
         set((state) => ({
           recentPlaylistIds: [
@@ -261,7 +266,7 @@ export const useStore = create<AppState>()(
     {
       name: "itunes-viewer-settings",
       storage: createJSONStorage(() => localStorage),
-      version: 3,
+      version: 4,
       partialize: (state) =>
         ({
           fields: state.fields,
@@ -273,6 +278,7 @@ export const useStore = create<AppState>()(
           volume: state.volume,
           shuffle: state.shuffle,
           repeat: state.repeat,
+          replayGain: state.replayGain,
           recentPlaylistIds: state.recentPlaylistIds,
         }) satisfies PersistedSettings,
       // v1(visibleColumns) からの移行: 旧キーは破棄してデフォルトに倒す。

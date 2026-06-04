@@ -68,6 +68,10 @@ export async function setVolume(volume: number): Promise<void> {
   return invoke("set_volume", { volume });
 }
 
+export async function setReplayGain(enabled: boolean): Promise<void> {
+  return invoke("set_replaygain", { enabled });
+}
+
 export async function checkAdvance(): Promise<number | null> {
   return invoke("check_advance");
 }

@@ -1,6 +1,7 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useStore } from "../store/useStore";
 import * as playbackApi from "../api/playback";
+import * as analysisApi from "../api/analysis";
 import { Icon } from "./Icon";
 import { Cover } from "./Cover";
 import { bpmColor } from "../lib/art";
@@ -15,19 +16,53 @@ function formatTime(ms: number): string {
 const WAVE_N = 64;
 
 export function PlayerBar() {
-  const { playback, tracks, volume, shuffle, repeat, setVolume, setShuffle, setRepeat } =
-    useStore();
+  const {
+    playback,
+    tracks,
+    volume,
+    shuffle,
+    repeat,
+    replayGain,
+    setVolume,
+    setShuffle,
+    setRepeat,
+    setReplayGain,
+  } = useStore();
 
   const currentTrack = playback.currentTrackId
     ? tracks.find((t) => t.trackId === playback.currentTrackId)
     : null;
 
-  // 決定的な波形バー（インデックスから高さ算出）。
+  // フォールバック用の決定的な波形バー（解析前/未解析時）。
   const waveHeights = useMemo(
     () =>
       Array.from({ length: WAVE_N }, (_, i) => 6 + Math.abs(Math.sin(i * 0.6) * 18) + (i % 3) * 2),
     [],
   );
+
+  // 再生中トラックの実波形ピークを取得（無ければフォールバック）。
+  const [peaks, setPeaks] = useState<number[]>([]);
+  useEffect(() => {
+    const id = playback.currentTrackId;
+    if (id == null) {
+      setPeaks([]);
+      return;
+    }
+    let alive = true;
+    analysisApi
+      .getAnalysis(id)
+      .then((a) => {
+        if (alive) setPeaks(a?.peaks ?? []);
+      })
+      .catch(() => {
+        if (alive) setPeaks([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [playback.currentTrackId]);
+
+  const bars = peaks.length > 0 ? peaks.map((p) => 4 + p * 22) : waveHeights;
 
   const progress =
     playback.durationMs > 0 ? playback.positionMs / playback.durationMs : 0;
@@ -72,6 +107,12 @@ export function PlayerBar() {
     setRepeat(next);
     await playbackApi.setRepeat(next);
   }, [repeat, setRepeat]);
+
+  const handleReplayGainToggle = useCallback(async () => {
+    const next = !replayGain;
+    setReplayGain(next);
+    await playbackApi.setReplayGain(next);
+  }, [replayGain, setReplayGain]);
 
   return (
     <div className="cb-player">
@@ -143,10 +184,10 @@ export function PlayerBar() {
         <div className="cb-seek">
           <span>{formatTime(playback.positionMs)}</span>
           <div className="cb-wave" onClick={handleWaveSeek}>
-            {waveHeights.map((h, i) => (
+            {bars.map((h, i) => (
               <i
                 key={i}
-                className={i / WAVE_N < progress ? "on" : ""}
+                className={i / bars.length < progress ? "on" : ""}
                 style={{ height: h }}
               />
             ))}
@@ -155,8 +196,16 @@ export function PlayerBar() {
         </div>
       </div>
 
-      {/* right: queue + volume */}
+      {/* right: replaygain + queue + volume */}
       <div className="cb-pr">
+        <button
+          className={"cb-pr-btn cb-tg" + (replayGain ? " on" : "")}
+          title={replayGain ? "ReplayGain on（音量を揃える）" : "ReplayGain off"}
+          onClick={handleReplayGainToggle}
+          style={{ fontSize: 11, fontWeight: 700 }}
+        >
+          RG
+        </button>
         <button className="cb-pr-btn" title="Queue">
           <Icon name="queue" size={16} />
         </button>

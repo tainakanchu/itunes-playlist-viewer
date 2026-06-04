@@ -12,6 +12,8 @@ export interface TrackAnalysis {
   loudnessLufs: number | null;
   replaygainDb: number | null;
   vector: number[];
+  /** 波形オーバービュー（0..1 のピーク列）。一覧取得では空、get_analysis でのみ充填。 */
+  peaks: number[];
 }
 
 export interface AnalysisStatus {

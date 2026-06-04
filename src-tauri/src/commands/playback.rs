@@ -47,10 +47,15 @@ pub fn play_track(
     }
 
     let duration = track.total_time_ms.unwrap_or(0) as u64;
+    let gain_db = db
+        .get_analysis(track_id)
+        .ok()
+        .flatten()
+        .and_then(|a| a.replaygain_db);
     let report = player
         .lock()
         .map_err(|e| e.to_string())?
-        .play(path, track_id, duration)?;
+        .play(path, track_id, duration, gain_db)?;
     apply_report(&db, report);
 
     db.add_recent_track(track_id).map_err(|e| e.to_string())?;
@@ -216,6 +221,18 @@ pub fn set_volume(
     Ok(())
 }
 
+#[tauri::command]
+pub fn set_replaygain(
+    player: tauri::State<'_, Mutex<AudioPlayer>>,
+    enabled: bool,
+) -> Result<(), String> {
+    player
+        .lock()
+        .map_err(|e| e.to_string())?
+        .set_replaygain(enabled);
+    Ok(())
+}
+
 /// フロントの polling から「曲が終わったので次に進めて」と呼ばれる。
 /// is_finished で sentinel が立っていれば次の曲を再生し、track_id を返す。
 #[tauri::command]
@@ -256,10 +273,15 @@ fn play_track_by_id(
         return Err("No file path for this track".to_string());
     }
     let duration = track.total_time_ms.unwrap_or(0) as u64;
+    let gain_db = db
+        .get_analysis(track_id)
+        .ok()
+        .flatten()
+        .and_then(|a| a.replaygain_db);
     let report = player
         .lock()
         .map_err(|e| e.to_string())?
-        .play(path, track_id, duration)?;
+        .play(path, track_id, duration, gain_db)?;
     apply_report(&db, report);
     db.add_recent_track(track_id).map_err(|e| e.to_string())?;
     Ok(())

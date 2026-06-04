@@ -36,6 +36,10 @@ pub struct AudioPlayer {
     play_started_at: Option<Instant>,
     accumulated_position_ms: u64,
     volume: f32,
+    /// ReplayGain (音量正規化) を適用するか。
+    replaygain_enabled: bool,
+    /// いま再生中の曲の ReplayGain ゲイン (dB)。None なら未知。
+    current_gain_db: Option<f64>,
 
     queue: Vec<i64>,
     /// 再生順 = `queue` のインデックスの並べ替え (shuffle 時はシャッフルされた並び)。
@@ -69,6 +73,8 @@ impl AudioPlayer {
             play_started_at: None,
             accumulated_position_ms: 0,
             volume: 1.0,
+            replaygain_enabled: false,
+            current_gain_db: None,
 
             queue: Vec::new(),
             order: Vec::new(),
@@ -86,6 +92,7 @@ impl AudioPlayer {
         file_path: &str,
         track_id: i64,
         duration_ms: u64,
+        gain_db: Option<f64>,
     ) -> Result<Option<PlayReport>, String> {
         let report = self.stop_internal();
 
@@ -106,8 +113,9 @@ impl AudioPlayer {
         // Prefer the decoded source's reported duration when available.
         let actual_duration = source.total_duration().map(|d| d.as_millis() as u64);
 
+        self.current_gain_db = gain_db;
         let sink = Sink::try_new(handle).map_err(|e| format!("Failed to create sink: {}", e))?;
-        sink.set_volume(self.volume);
+        sink.set_volume(self.effective_volume());
         sink.append(source);
 
         self.sink = Some(sink);
@@ -183,15 +191,32 @@ impl AudioPlayer {
     }
 
     pub fn set_volume(&mut self, v: f32) {
-        let clamped = v.clamp(0.0, 1.0);
-        self.volume = clamped;
+        self.volume = v.clamp(0.0, 1.0);
         if let Some(ref sink) = self.sink {
-            sink.set_volume(clamped);
+            sink.set_volume(self.effective_volume());
         }
     }
 
     pub fn volume(&self) -> f32 {
         self.volume
+    }
+
+    /// ReplayGain の ON/OFF を切り替え、再生中なら即座に音量へ反映する。
+    pub fn set_replaygain(&mut self, enabled: bool) {
+        self.replaygain_enabled = enabled;
+        if let Some(ref sink) = self.sink {
+            sink.set_volume(self.effective_volume());
+        }
+    }
+
+    /// ユーザー音量 × (ReplayGain 有効時のみ) トラックゲイン。0..1 にクランプ。
+    fn effective_volume(&self) -> f32 {
+        let gain = if self.replaygain_enabled {
+            self.current_gain_db.map(db_to_linear).unwrap_or(1.0)
+        } else {
+            1.0
+        };
+        (self.volume * gain).clamp(0.0, 1.0)
     }
 
     pub fn is_playing(&self) -> bool {
@@ -399,6 +424,11 @@ impl AudioPlayer {
         }
         self.current_track_id_from_order()
     }
+}
+
+/// dB ゲインを線形倍率へ。
+fn db_to_linear(db: f64) -> f32 {
+    10f32.powf((db as f32) / 20.0)
 }
 
 /// Fisher-Yates シャッフル (`rand` 依存を増やさず軽量 PRNG で)。

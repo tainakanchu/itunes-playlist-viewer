@@ -110,6 +110,7 @@ pub fn run() {
             commands::playback::set_shuffle,
             commands::playback::set_repeat,
             commands::playback::set_volume,
+            commands::playback::set_replaygain,
             commands::playback::check_advance,
             // ripping
             commands::ripping::detect_disc,

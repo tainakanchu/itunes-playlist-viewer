@@ -44,6 +44,7 @@ export default function App() {
     setShuffle,
     repeat,
     setRepeat,
+    replayGain,
     sortField,
     sortOrder,
     displayMode,
@@ -152,6 +153,7 @@ export default function App() {
     playbackApi.setVolume(volume).catch(() => {});
     playbackApi.setShuffle(shuffle).catch(() => {});
     playbackApi.setRepeat(repeat).catch(() => {});
+    playbackApi.setReplayGain(replayGain).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
