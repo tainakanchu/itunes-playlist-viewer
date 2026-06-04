@@ -67,6 +67,7 @@ export function Toolbar({ onLibraryChanged, onOpenRipDialog, onOpenRulesPanel }:
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [importingFiles, setImportingFiles] = useState(false);
+  const [libraryRoot, setLibraryRoot] = useState<string | null>(null);
   const [status, setStatus] = useState("");
   const [stats, setStats] = useState<LibraryStats | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -86,6 +87,25 @@ export function Toolbar({ onLibraryChanged, onOpenRipDialog, onOpenRulesPanel }:
   useEffect(() => {
     refreshStats();
   }, [refreshStats, tracks.length]);
+
+  useEffect(() => {
+    libraryApi
+      .getLibraryRoot()
+      .then((r) => setLibraryRoot(r))
+      .catch(() => setLibraryRoot(null));
+  }, []);
+
+  const handleSetLibraryRoot = useCallback(async () => {
+    const dir = await open({ directory: true, multiple: false });
+    if (typeof dir !== "string") return;
+    try {
+      await libraryApi.setLibraryRoot(dir);
+      setLibraryRoot(dir);
+      setStatus(`整理先を設定: ${dir}`);
+    } catch (err) {
+      setStatus(`整理先の設定に失敗: ${err}`);
+    }
+  }, []);
 
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -326,6 +346,17 @@ export function Toolbar({ onLibraryChanged, onOpenRipDialog, onOpenRulesPanel }:
             title="Build playlists from YAML rules"
           >
             <Icon name="settings" size={16} />
+          </button>
+          <button
+            className={"cb-btn cb-btn-iconly" + (libraryRoot ? " on" : "")}
+            onClick={handleSetLibraryRoot}
+            title={
+              libraryRoot
+                ? `整理先 (編集時に自動でフォルダ分け): ${libraryRoot}\nクリックで変更`
+                : "整理先フォルダを設定 (未設定だと自動整理オフ)"
+            }
+          >
+            <Icon name="folderPlus" size={16} />
           </button>
           <button
             className="cb-btn cb-btn-iconly"

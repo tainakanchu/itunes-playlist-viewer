@@ -34,7 +34,6 @@ impl Database {
         Ok(())
     }
 
-    #[allow(dead_code)]
     pub fn get_state(&self, key: &str) -> Result<Option<String>> {
         let mut stmt = self
             .conn
@@ -43,6 +42,21 @@ impl Database {
         match rows.next() {
             Some(row) => Ok(Some(row?)),
             None => Ok(None),
+        }
+    }
+
+    /// 自動整理が有効なら整理先ルートを返す。
+    /// `library_root` が未設定 / 空、または `organize_enabled == "0"` のときは `None`。
+    /// これを `None` とする限り、取り込み・編集時の整理処理は完全にスキップされ、
+    /// 従来どおり (その場参照 / DB のみ更新) に振る舞う。
+    pub fn organize_root(&self) -> Option<String> {
+        let root = self.get_state("library_root").ok().flatten()?;
+        if root.trim().is_empty() {
+            return None;
+        }
+        match self.get_state("organize_enabled").ok().flatten() {
+            Some(v) if v == "0" => None,
+            _ => Some(root),
         }
     }
 }

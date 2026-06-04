@@ -378,6 +378,16 @@ impl Database {
         Ok(())
     }
 
+    /// トラックの実ファイル位置を更新する (自動整理でファイルを移動した後)。
+    /// `location_path` は解決済み絶対パス、`location_raw` は `file://` URI。
+    pub fn set_track_location(&self, track_id: i64, path: &str, url: &str) -> Result<()> {
+        self.conn.execute(
+            "UPDATE tracks SET location_path = ?1, location_raw = ?2 WHERE track_id = ?3",
+            params![path, url, track_id],
+        )?;
+        Ok(())
+    }
+
     pub fn set_rating(&self, track_id: i64, rating: i64) -> Result<()> {
         self.conn.execute(
             "UPDATE tracks SET rating = ?1, date_modified = ?2 WHERE track_id = ?3",

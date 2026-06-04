@@ -71,3 +71,13 @@ export async function removeGenreTag(trackIds: number[], tag: string): Promise<v
 export async function getAllGenreTags(): Promise<GenreTagCount[]> {
   return invoke("get_all_genre_tags");
 }
+
+/// 整理先 (ライブラリルート) を取得。未設定なら null。
+export async function getLibraryRoot(): Promise<string | null> {
+  return invoke("get_library_root");
+}
+
+/// 整理先 (ライブラリルート) を設定。空文字で整理を無効化。
+export async function setLibraryRoot(path: string): Promise<void> {
+  return invoke("set_library_root", { path });
+}

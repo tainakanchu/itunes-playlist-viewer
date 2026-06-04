@@ -7,6 +7,7 @@ mod importer;
 mod itunes_xml;
 mod metadata;
 mod models;
+mod organizer;
 mod playlist_rules;
 mod smtc;
 mod updater;
@@ -75,6 +76,8 @@ pub fn run() {
             commands::library::add_genre_tag,
             commands::library::remove_genre_tag,
             commands::library::get_all_genre_tags,
+            commands::library::get_library_root,
+            commands::library::set_library_root,
             // playlists
             commands::playlists::get_playlists,
             commands::playlists::get_playlist_tracks,

@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use tauri::{AppHandle, Manager};
 
 use crate::db::Database;
@@ -6,6 +8,7 @@ use crate::itunes_xml::{parser, writer};
 use crate::models::{
     ExportResult, GenreTagCount, ImportFileResult, ImportResult, LibraryStats, Track, TrackEdit,
 };
+use crate::organizer;
 
 fn get_db(app: &AppHandle) -> Result<Database, String> {
     let app_dir = app
@@ -86,10 +89,108 @@ pub fn get_library_stats(app: AppHandle) -> Result<LibraryStats, String> {
     db.library_stats().map_err(|e| e.to_string())
 }
 
+/// `Option<Option<i64>>` のパッチを最終値へ解決する。
+/// `Some(Some(v))`=設定 / `Some(None)`=クリア / `None`=旧値を維持。
+fn resolve_int(edit: &Option<Option<i64>>, before: Option<i64>) -> Option<i64> {
+    match edit {
+        Some(v) => *v,
+        None => before,
+    }
+}
+
 #[tauri::command]
 pub fn update_track(app: AppHandle, track_id: i64, edits: TrackEdit) -> Result<(), String> {
     let db = get_db(&app)?;
-    db.update_track(track_id, &edits).map_err(|e| e.to_string())
+
+    // 1. 編集前のトラックを取得 (旧 location / 非編集フィールドの保持に使う)。
+    let before = db.get_track_by_track_id(track_id).map_err(|e| e.to_string())?;
+
+    // 2. DB を更新 (ここまでは必ず確定させる)。
+    db.update_track(track_id, &edits).map_err(|e| e.to_string())?;
+
+    // 3. 整理のガード: ルート未設定 / 整理 OFF / 旧トラックやファイルが無いなら終了。
+    //    タグ書き戻し・移動の失敗は「整理失敗」の警告に留め、編集自体は成功扱いとする。
+    let Some(root) = db.organize_root() else {
+        return Ok(());
+    };
+    let Some(before) = before else { return Ok(()) };
+    let Some(loc) = before.location_path.clone() else {
+        return Ok(());
+    };
+    let src = Path::new(&loc);
+    if !src.exists() {
+        return Ok(());
+    }
+
+    // 4. 最終値を確定 (edits 優先、来なかった項目は旧値)。
+    let name = edits.name.clone().or(before.name.clone());
+    let artist = edits.artist.clone().or(before.artist.clone());
+    let album_artist = edits.album_artist.clone().or(before.album_artist.clone());
+    let album = edits.album.clone().or(before.album.clone());
+    let genre = edits.genre.clone().or(before.genre.clone());
+    let year = resolve_int(&edits.year, before.year);
+    let track_number = resolve_int(&edits.track_number, before.track_number);
+    let track_count = resolve_int(&edits.track_count, before.track_count);
+    let disc_number = resolve_int(&edits.disc_number, before.disc_number);
+    let disc_count = resolve_int(&edits.disc_count, before.disc_count);
+    // Compilation は編集対象外なので旧値を引き継ぐ。
+    let compilation = before.compilation;
+
+    // 5. 実ファイルのタグを書き戻す (他アプリでも編集内容が見えるように)。
+    let w = organizer::TagWrite {
+        title: name.as_deref(),
+        artist: artist.as_deref(),
+        album_artist: album_artist.as_deref(),
+        album: album.as_deref(),
+        genre: genre.as_deref(),
+        year,
+        track_number,
+        track_count,
+        disc_number,
+        disc_count,
+    };
+    if let Err(e) = organizer::write_tags(src, &w) {
+        eprintln!("write_tags failed for {}: {}", loc, e);
+    }
+
+    // 6-9. 新ターゲット (フォルダ分け + iTunes 準拠リネーム) を算出して移動し、
+    //      DB の location を追従させる。
+    let meta = organizer::TrackMeta {
+        title: name.as_deref(),
+        artist: artist.as_deref(),
+        album_artist: album_artist.as_deref(),
+        album: album.as_deref(),
+        compilation,
+        track_number,
+        disc_number,
+        disc_count,
+    };
+    let target = organizer::target_path(Path::new(&root), &meta, src);
+    match organizer::relocate(src, &target, organizer::Mode::Move) {
+        Ok(dest) if dest != src => {
+            let dest_str = dest.to_string_lossy().to_string();
+            let url = writer::path_to_file_url(&dest_str);
+            db.set_track_location(track_id, &dest_str, &url)
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(_) => {}
+        Err(e) => eprintln!("relocate failed for {}: {}", loc, e),
+    }
+    Ok(())
+}
+
+/// 整理先 (ライブラリルート) を取得する。未設定なら `None`。
+#[tauri::command]
+pub fn get_library_root(app: AppHandle) -> Result<Option<String>, String> {
+    let db = get_db(&app)?;
+    db.get_state("library_root").map_err(|e| e.to_string())
+}
+
+/// 整理先 (ライブラリルート) を設定する。空文字を渡すと整理を無効化する。
+#[tauri::command]
+pub fn set_library_root(app: AppHandle, path: String) -> Result<(), String> {
+    let db = get_db(&app)?;
+    db.set_state("library_root", &path).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
