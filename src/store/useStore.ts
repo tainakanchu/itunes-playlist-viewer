@@ -58,6 +58,8 @@ interface AppState extends PersistedSettings {
   // 音声解析 (BPM/key/energy) のキャッシュと進捗 — セッション内のみ、永続化しない
   analysisByTrack: Map<number, TrackAnalysis>;
   analysisActive: { done: number; total: number } | null;
+  // Similar タブの基準トラック。null なら再生中の曲を基準にする。
+  similarBaseTrackId: number | null;
 
   // Actions
   setViewMode: (mode: ViewMode) => void;
@@ -102,6 +104,7 @@ interface AppState extends PersistedSettings {
   // Analysis
   setAnalyses: (list: TrackAnalysis[]) => void;
   setAnalysisActive: (v: { done: number; total: number } | null) => void;
+  setSimilarBase: (trackId: number | null) => void;
 }
 
 export const useStore = create<AppState>()(
@@ -126,6 +129,7 @@ export const useStore = create<AppState>()(
       railTab: "crate",
       analysisByTrack: new Map(),
       analysisActive: null,
+      similarBaseTrackId: null,
 
       // Persisted
       fields: DEFAULT_FIELDS,
@@ -235,6 +239,8 @@ export const useStore = create<AppState>()(
       setAnalyses: (list) =>
         set({ analysisByTrack: new Map(list.map((a) => [a.trackId, a])) }),
       setAnalysisActive: (v) => set({ analysisActive: v }),
+      setSimilarBase: (trackId) =>
+        set({ similarBaseTrackId: trackId, railTab: "similar" }),
     }),
     {
       name: "itunes-viewer-settings",

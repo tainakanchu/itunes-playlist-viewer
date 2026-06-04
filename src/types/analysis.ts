@@ -1,3 +1,5 @@
+import type { Track } from "./track";
+
 /** 1 曲の音声解析結果（Rust の TrackAnalysis と 1:1）。 */
 export interface TrackAnalysis {
   trackId: number;
@@ -15,6 +17,12 @@ export interface TrackAnalysis {
 export interface AnalysisStatus {
   analyzed: number;
   total: number;
+}
+
+/** 類似度検索の 1 ヒット（曲 + 距離。小さいほど似ている）。 */
+export interface SimilarHit {
+  track: Track;
+  distance: number;
 }
 
 /** `analysis-progress` イベントのペイロード（serde tag="kind", camelCase）。 */

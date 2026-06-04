@@ -61,6 +61,7 @@ export function TrackTable({ onLoadMore, onTracksChanged, onEditTrack }: TrackTa
     recentPlaylistIds,
     pushRecentPlaylist,
     analysisByTrack,
+    setSimilarBase,
   } = useStore();
 
   const parentRef = useRef<HTMLDivElement>(null);
@@ -265,6 +266,13 @@ export function TrackTable({ onLoadMore, onTracksChanged, onEditTrack }: TrackTa
     onEditTrack(contextMenu.track);
     setContextMenu(null);
   }, [contextMenu, onEditTrack]);
+
+  // 右クリックした 1 曲を基準に右レールの Similar タブを開く。
+  const handleFindSimilar = useCallback(() => {
+    if (!contextMenu) return;
+    setSimilarBase(contextMenu.track.trackId);
+    setContextMenu(null);
+  }, [contextMenu, setSimilarBase]);
 
   const closeMenu = useCallback(() => setContextMenu(null), []);
 
@@ -567,6 +575,7 @@ export function TrackTable({ onLoadMore, onTracksChanged, onEditTrack }: TrackTa
           onAddToCrate={handleAddSelectionToCrate}
           onEnqueue={handleEnqueue}
           onAnalyze={handleAnalyzeSelection}
+          onFindSimilar={handleFindSimilar}
           onGetInfo={handleGetInfo}
           onRemoveFromPlaylist={() => handleRemoveFromPlaylist(ctxTrack)}
           onAddToPlaylist={handleAddToPlaylist}

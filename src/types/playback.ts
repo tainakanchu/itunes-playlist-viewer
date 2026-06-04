@@ -14,4 +14,4 @@ export type DisplayMode = "list" | "covers";
 export type CoverSize = 0 | 20 | 28;
 
 /// 右レールのタブ。
-export type RailTab = "now" | "next" | "crate";
+export type RailTab = "now" | "next" | "crate" | "similar";
