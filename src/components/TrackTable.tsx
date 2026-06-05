@@ -66,6 +66,9 @@ export function TrackTable({ onLoadMore, onTracksChanged, onEditTrack, onConvert
   } = useStore();
 
   const parentRef = useRef<HTMLDivElement>(null);
+  // 範囲選択の起点（Shift の基準）と、矢印移動のカーソル位置。
+  const anchorIdRef = useRef<number | null>(null);
+  const focusIdRef = useRef<number | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [showAddTagDialog, setShowAddTagDialog] = useState(false);
   const [newTag, setNewTag] = useState("");
@@ -80,6 +83,9 @@ export function TrackTable({ onLoadMore, onTracksChanged, onEditTrack, onConvert
     estimateSize: () => rowH,
     overscan: 16,
   });
+  // キーボード操作（空 deps の effect）から最新の virtualizer を参照するための ref。
+  const virtualizerRef = useRef(rowVirtualizer);
+  virtualizerRef.current = rowVirtualizer;
 
   useEffect(() => {
     rowVirtualizer.measure();
@@ -97,18 +103,26 @@ export function TrackTable({ onLoadMore, onTracksChanged, onEditTrack, onConvert
   const handleRowClick = useCallback(
     (e: React.MouseEvent, track: Track) => {
       const additive = e.ctrlKey || e.metaKey;
-      if (e.shiftKey && selectedTrackIds.size > 0) {
-        const lastSelectedTrackId = Array.from(selectedTrackIds).pop()!;
-        const lastIdx = tracks.findIndex((t) => t.trackId === lastSelectedTrackId);
+      if (e.shiftKey) {
+        // アンカー（前回クリック位置）から今回までを範囲選択。アンカーは
+        // 動かさないので、Shift クリックを繰り返すと同じ起点から伸縮できる。
+        const anchorId = anchorIdRef.current ?? track.trackId;
+        const anchorIdx = tracks.findIndex((t) => t.trackId === anchorId);
         const curIdx = tracks.findIndex((t) => t.trackId === track.trackId);
-        if (lastIdx !== -1 && curIdx !== -1) {
-          const [from, to] = lastIdx < curIdx ? [lastIdx, curIdx] : [curIdx, lastIdx];
-          const next = new Set<number>(additive ? selectedTrackIds : new Set());
+        if (anchorIdx !== -1 && curIdx !== -1) {
+          const [from, to] = anchorIdx <= curIdx ? [anchorIdx, curIdx] : [curIdx, anchorIdx];
+          // Shift+Ctrl/Cmd は既存選択へ追加、ただの Shift は置き換え。
+          const next = new Set<number>(additive ? selectedTrackIds : new Set<number>());
           for (let i = from; i <= to; i++) next.add(tracks[i].trackId);
           setSelectedTrackIds(next);
+          if (anchorIdRef.current === null) anchorIdRef.current = anchorId;
+          focusIdRef.current = track.trackId;
           return;
         }
       }
+      // 通常クリック / Ctrl・Cmd クリック: アンカーとフォーカスをここへ移す。
+      anchorIdRef.current = track.trackId;
+      focusIdRef.current = track.trackId;
       toggleTrackSelection(track.trackId, additive);
     },
     [tracks, selectedTrackIds, setSelectedTrackIds, toggleTrackSelection],
@@ -133,6 +147,8 @@ export function TrackTable({ onLoadMore, onTracksChanged, onEditTrack, onConvert
     (e: React.MouseEvent, track: Track) => {
       e.preventDefault();
       if (!selectedTrackIds.has(track.trackId)) {
+        anchorIdRef.current = track.trackId;
+        focusIdRef.current = track.trackId;
         toggleTrackSelection(track.trackId, false);
       }
       setContextMenu({ x: e.clientX, y: e.clientY, track });
@@ -313,6 +329,70 @@ export function TrackTable({ onLoadMore, onTracksChanged, onEditTrack, onConvert
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [tracks, selectedTrackIds]);
+
+  // 矢印キーでの選択移動 / 範囲拡張 と Ctrl・Cmd+A の全選択。
+  // 最新状態は useStore.getState() から読むので effect は一度だけ張る。
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || el?.isContentEditable) return;
+      // モーダルが開いているときは矢印操作を奪わない。
+      if (document.querySelector(".modal-overlay")) return;
+
+      const cmd = e.ctrlKey || e.metaKey;
+      const st = useStore.getState();
+      const ts = st.tracks;
+      if (ts.length === 0) return;
+
+      // Ctrl/Cmd+A: 全選択。
+      if (cmd && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        st.setSelectedTrackIds(new Set(ts.map((t) => t.trackId)));
+        anchorIdRef.current = ts[0].trackId;
+        focusIdRef.current = ts[ts.length - 1].trackId;
+        return;
+      }
+
+      if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+      if (cmd) return; // Cmd/Ctrl+Arrow は別操作に譲る。
+      e.preventDefault();
+
+      const dir = e.key === "ArrowDown" ? 1 : -1;
+      // 現在のカーソル位置を決める（フォーカス → アンカー の順でフォールバック）。
+      let curIdx = ts.findIndex((t) => t.trackId === focusIdRef.current);
+      if (curIdx === -1) curIdx = ts.findIndex((t) => t.trackId === anchorIdRef.current);
+      const nextIdx =
+        curIdx === -1
+          ? dir === 1
+            ? 0
+            : ts.length - 1
+          : Math.max(0, Math.min(ts.length - 1, curIdx + dir));
+      const nextId = ts[nextIdx].trackId;
+
+      if (e.shiftKey) {
+        // アンカーから nextIdx までを範囲選択。アンカーは固定。
+        if (anchorIdRef.current === null) {
+          anchorIdRef.current = curIdx === -1 ? nextId : ts[curIdx].trackId;
+        }
+        let aIdx = ts.findIndex((t) => t.trackId === anchorIdRef.current);
+        if (aIdx === -1) aIdx = nextIdx;
+        const [from, to] = aIdx <= nextIdx ? [aIdx, nextIdx] : [nextIdx, aIdx];
+        const next = new Set<number>();
+        for (let i = from; i <= to; i++) next.add(ts[i].trackId);
+        st.setSelectedTrackIds(next);
+        focusIdRef.current = nextId;
+      } else {
+        // 単一選択を 1 行移動。アンカーも一緒に移す。
+        st.setSelectedTrackIds(new Set([nextId]));
+        anchorIdRef.current = nextId;
+        focusIdRef.current = nextId;
+      }
+      virtualizerRef.current.scrollToIndex(nextIdx, { align: "auto" });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const items = rowVirtualizer.getVirtualItems();
   // 右クリック対象の最新状態（レーティング更新後も即反映させるため tracks から引き直す）
