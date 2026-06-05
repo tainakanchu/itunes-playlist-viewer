@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store/useStore";
 import * as playbackApi from "../api/playback";
 import * as analysisApi from "../api/analysis";
@@ -27,7 +27,11 @@ export function PlayerBar() {
     setShuffle,
     setRepeat,
     setReplayGain,
+    setRailTab,
   } = useStore();
+
+  // ミュート前の音量を保持（復帰用）。
+  const lastVolumeRef = useRef(volume > 0 ? volume : 1);
 
   const currentTrack = playback.currentTrackId
     ? tracks.find((t) => t.trackId === playback.currentTrackId)
@@ -74,6 +78,20 @@ export function PlayerBar() {
 
   const handleNext = useCallback(() => playbackApi.playNext(), []);
   const handlePrev = useCallback(() => playbackApi.playPrev(), []);
+
+  const handleMuteToggle = useCallback(() => {
+    if (volume > 0) {
+      lastVolumeRef.current = volume;
+      setVolume(0);
+      playbackApi.setVolume(0);
+    } else {
+      const v = lastVolumeRef.current || 1;
+      setVolume(v);
+      playbackApi.setVolume(v);
+    }
+  }, [volume, setVolume]);
+
+  const handleOpenQueue = useCallback(() => setRailTab("next"), [setRailTab]);
 
   const handleWaveSeek = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -206,12 +224,13 @@ export function PlayerBar() {
         >
           RG
         </button>
-        <button className="cb-pr-btn" title="Queue">
+        <button className="cb-pr-btn" title="Up Next" onClick={handleOpenQueue}>
           <Icon name="queue" size={16} />
         </button>
         <button
           className="cb-pr-btn"
-          title={volume === 0 ? "Muted" : "Volume (↑/↓)"}
+          title={volume === 0 ? "Unmute" : "Mute"}
+          onClick={handleMuteToggle}
         >
           <Icon name={volume === 0 ? "volumeX" : "volume"} size={16} />
         </button>
