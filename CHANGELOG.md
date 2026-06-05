@@ -10,6 +10,28 @@ Each release is documented in both Japanese and English.
 
 ## [Unreleased]
 
+## [v0.1.1] - 2026-06-06
+
+### 日本語
+
+#### 追加
+- **プレイリストフォルダの折りたたみ**: サイドバーでフォルダをクリックすると開閉できるようになりました（シェブロンが回転）。たたんだ状態は保存され、再起動しても保たれます。
+- **アップデートの直接ダウンロード**: 更新通知の「Download」が、ブラウザでリリースページを開く代わりに、この OS 向けのインストーラ（Windows）を**直接ダウンロードして起動**するようになりました。インストーラが見つからない / 失敗した場合は従来どおりリリースページを開きます。
+
+#### 修正
+- **プレイリストを選んでも曲が絞り込まれない不具合 (v0.1.0 の回帰)** を修正しました。プレイリスト取得クエリの列が `last_played` 追加後の行マッピングと食い違っていて失敗し、一覧が更新されていませんでした。再発防止のテストも追加しています。
+
+---
+
+### English
+
+#### Added
+- **Collapsible playlist folders**: clicking a folder in the sidebar now collapses / expands it (with a rotating chevron). The collapsed state is saved and persists across restarts.
+- **Direct download for updates**: the update banner's "Download" now downloads this OS's installer (Windows) and launches it directly, instead of opening the release page in a browser. It falls back to the release page when no installer asset is found or the download fails.
+
+#### Fixed
+- Fixed selecting a playlist not filtering the track list (a v0.1.0 regression). The playlist query's columns no longer matched the row mapping after `last_played` was added, so it failed and the list never updated. Added a regression test.
+
 ## [v0.1.0] - 2026-06-05
 
 ### 日本語
