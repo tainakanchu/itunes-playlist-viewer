@@ -14,7 +14,13 @@ use crate::importer;
 use crate::models::{ConvertFormat, ConvertProgress, ConvertRequest, Track};
 
 /// 指定トラックを順に変換する。`add_to_library` ならその場参照で DB へ追加する。
-pub fn convert_tracks(app: &AppHandle, db: &Database, req: ConvertRequest) -> Result<(), String> {
+/// `ffmpeg` は呼び出し側で解決済みの ffmpeg 実行ファイルパス。
+pub fn convert_tracks(
+    app: &AppHandle,
+    db: &Database,
+    req: ConvertRequest,
+    ffmpeg: PathBuf,
+) -> Result<(), String> {
     let out_dir = PathBuf::from(&req.output_dir);
     if out_dir.as_os_str().is_empty() {
         return Err("Output folder is required".to_string());
@@ -30,9 +36,6 @@ pub fn convert_tracks(app: &AppHandle, db: &Database, req: ConvertRequest) -> Re
 
     let total = jobs.len();
     let _ = app.emit("convert-progress", ConvertProgress::Start { total });
-
-    // Windows ではバンドルした ffmpeg.exe を優先、無ければ PATH の `ffmpeg`。
-    let ffmpeg = ffmpeg_program(app);
 
     let mut converted = 0usize;
     let mut failed = 0usize;
@@ -79,23 +82,6 @@ pub fn convert_tracks(app: &AppHandle, db: &Database, req: ConvertRequest) -> Re
         },
     );
     Ok(())
-}
-
-/// 使用する ffmpeg のパスを解決する。Windows ではバンドルされた resource の
-/// ffmpeg.exe を優先し、無ければ PATH 上の `ffmpeg` にフォールバックする。
-fn ffmpeg_program(app: &AppHandle) -> PathBuf {
-    #[cfg(target_os = "windows")]
-    {
-        use tauri::Manager;
-        if let Ok(dir) = app.path().resource_dir() {
-            let p = dir.join("ffmpeg.exe");
-            if p.exists() {
-                return p;
-            }
-        }
-    }
-    let _ = app;
-    PathBuf::from("ffmpeg")
 }
 
 fn convert_one(

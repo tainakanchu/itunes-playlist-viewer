@@ -49,8 +49,10 @@ tauri-plugin-clipboard-manager = "2.3.2"
 discid = "0.6"
 
 # === Windows-only: System Media Transport Controls (Now Playing widget + media keys) ===
+# `zip` is used to unpack the on-demand ffmpeg download (BtbN win64 build).
 [target.'cfg(target_os = "windows")'.dependencies]
 souvlaki = "0.8"
+zip = "2"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
