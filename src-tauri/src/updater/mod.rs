@@ -23,8 +23,11 @@ pub struct UpdateInfo {
     pub release_url: String,
     pub release_notes: String,
     pub published_at: Option<String>,
-    /// この OS 向けインストーラの直接ダウンロード URL (見つからなければ None)。
+    /// この OS 向けの直接ダウンロード URL (見つからなければ None)。
+    /// ポータブル運用なら portable zip、そうでなければインストーラを指す。
     pub download_url: Option<String>,
+    /// ポータブル運用（exe の隣に portable.txt がある）か。
+    pub portable: bool,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -48,8 +51,24 @@ struct GhAsset {
     browser_download_url: String,
 }
 
-/// この OS 向けのインストーラ資産を選ぶ。Windows のみ対応 (NSIS setup → msi → exe)。
-fn pick_installer_asset(assets: &[GhAsset]) -> Option<String> {
+/// 実行ファイルの隣に `portable.txt` があればポータブル運用とみなす。
+pub fn is_portable() -> bool {
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.join("portable.txt")))
+        .map(|m| m.exists())
+        .unwrap_or(false)
+}
+
+/// その URL がポータブル zip を指すか（自己差し替え対象か）。
+pub fn is_portable_zip_url(url: &str) -> bool {
+    let u = url.to_lowercase();
+    u.ends_with("_portable.zip") || (u.contains("portable") && u.ends_with(".zip"))
+}
+
+/// この OS 向けのダウンロード資産を選ぶ。Windows のみ対応。
+/// ポータブル時は `*_portable.zip` を優先し、無ければインストーラ (setup → msi → exe)。
+fn pick_asset(assets: &[GhAsset], portable: bool) -> Option<String> {
     if !cfg!(target_os = "windows") {
         return None;
     }
@@ -59,12 +78,18 @@ fn pick_installer_asset(assets: &[GhAsset]) -> Option<String> {
             .find(|a| pred(&a.name.to_lowercase()))
             .map(|a| a.browser_download_url.clone())
     };
+    if portable {
+        if let Some(z) = find(&|n| is_portable_zip_url(n)) {
+            return Some(z);
+        }
+    }
     find(&|n| n.ends_with("-setup.exe") || n.contains("setup"))
         .or_else(|| find(&|n| n.ends_with(".msi")))
         .or_else(|| find(&|n| n.ends_with(".exe")))
 }
 
 pub async fn check_for_update() -> Result<UpdateInfo, String> {
+    let portable = is_portable();
     let client = reqwest::Client::builder()
         .user_agent(USER_AGENT)
         .timeout(std::time::Duration::from_secs(10))
@@ -87,6 +112,7 @@ pub async fn check_for_update() -> Result<UpdateInfo, String> {
             release_notes: String::new(),
             published_at: None,
             download_url: None,
+            portable,
         });
     }
     if !resp.status().is_success() {
@@ -107,13 +133,14 @@ pub async fn check_for_update() -> Result<UpdateInfo, String> {
             release_notes: rel.body.unwrap_or_default(),
             published_at: rel.published_at,
             download_url: None,
+            portable,
         });
     }
 
     let current = env!("CARGO_PKG_VERSION").to_string();
     let latest_clean = rel.tag_name.trim_start_matches('v').to_string();
     let available = is_newer(&latest_clean, &current);
-    let download_url = pick_installer_asset(&rel.assets);
+    let download_url = pick_asset(&rel.assets, portable);
 
     Ok(UpdateInfo {
         available,
@@ -123,6 +150,7 @@ pub async fn check_for_update() -> Result<UpdateInfo, String> {
         release_notes: rel.name.unwrap_or_default() + "\n\n" + &rel.body.unwrap_or_default(),
         published_at: rel.published_at,
         download_url,
+        portable,
     })
 }
 
@@ -148,6 +176,18 @@ pub async fn download_and_run(url: &str) -> Result<String, String> {
         .await
         .map_err(|e| format!("Reading download failed: {}", e))?;
 
+    // ポータブル zip なら exe を自己差し替えして再起動する。
+    if is_portable_zip_url(url) {
+        #[cfg(target_os = "windows")]
+        {
+            return apply_portable_update(&bytes);
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            return Err("Portable self-update is only supported on Windows".to_string());
+        }
+    }
+
     let fname = url
         .rsplit('/')
         .next()
@@ -159,6 +199,74 @@ pub async fn download_and_run(url: &str) -> Result<String, String> {
     launch_installer(&path)?;
     Ok(path.to_string_lossy().to_string())
 }
+
+/// ポータブル運用の自己アップデート。zip から `crateforge.exe` を取り出し、
+/// 実行中の exe を `.old` へ退避してから差し替え、新しい exe を起動する。
+/// （実行中の exe はリネーム可能。`.old` は次回起動時に掃除する。）
+#[cfg(target_os = "windows")]
+fn apply_portable_update(zip_bytes: &[u8]) -> Result<String, String> {
+    use std::io::Read;
+
+    let cur = std::env::current_exe()
+        .map_err(|e| format!("現在の実行ファイルを取得できません: {e}"))?;
+    let dir = cur
+        .parent()
+        .ok_or("実行ファイルのフォルダを取得できません")?;
+
+    // zip から crateforge.exe を取り出す。
+    let reader = std::io::Cursor::new(zip_bytes);
+    let mut zip = zip::ZipArchive::new(reader).map_err(|e| format!("zip を開けません: {e}"))?;
+    let mut idx = None;
+    for i in 0..zip.len() {
+        let name = {
+            let f = zip.by_index(i).map_err(|e| e.to_string())?;
+            f.name().replace('\\', "/").to_lowercase()
+        };
+        if name.ends_with("crateforge.exe") {
+            idx = Some(i);
+            break;
+        }
+    }
+    let i = idx.ok_or("zip 内に crateforge.exe が見つかりません")?;
+    let mut new_bytes = Vec::new();
+    zip.by_index(i)
+        .map_err(|e| e.to_string())?
+        .read_to_end(&mut new_bytes)
+        .map_err(|e| e.to_string())?;
+
+    let new_exe = dir.join("crateforge.new.exe");
+    let old_exe = dir.join("crateforge.old.exe");
+    std::fs::write(&new_exe, &new_bytes)
+        .map_err(|e| format!("新しい実行ファイルの書き込みに失敗: {e}"))?;
+
+    let _ = std::fs::remove_file(&old_exe);
+    std::fs::rename(&cur, &old_exe).map_err(|e| format!("旧 exe の退避に失敗: {e}"))?;
+    if let Err(e) = std::fs::rename(&new_exe, &cur) {
+        // 失敗時はロールバックして整合性を保つ。
+        let _ = std::fs::rename(&old_exe, &cur);
+        return Err(format!("差し替えに失敗: {e}"));
+    }
+
+    // 新しい exe を起動（現プロセスは呼び出し側で終了する）。
+    std::process::Command::new(&cur)
+        .spawn()
+        .map_err(|e| format!("再起動に失敗: {e}"))?;
+    Ok(cur.to_string_lossy().to_string())
+}
+
+/// 起動時に、前回のポータブル更新で残った `crateforge.old.exe` を掃除する。
+#[cfg(target_os = "windows")]
+pub fn cleanup_stale() {
+    if let Ok(cur) = std::env::current_exe() {
+        if let Some(dir) = cur.parent() {
+            let _ = std::fs::remove_file(dir.join("crateforge.old.exe"));
+            let _ = std::fs::remove_file(dir.join("crateforge.new.exe"));
+        }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn cleanup_stale() {}
 
 #[cfg(target_os = "windows")]
 fn launch_installer(path: &std::path::Path) -> Result<(), String> {

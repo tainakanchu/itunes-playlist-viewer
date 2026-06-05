@@ -47,19 +47,8 @@ jobs:
       - name: Frontend typecheck
         run: pnpm typecheck
 
-      # 変換機能 (ffmpeg) を箱から動かすため、static な ffmpeg.exe を
-      # resource として同梱する (tauri.windows.conf.json で参照)。
-      - name: Bundle ffmpeg (for audio conversion)
-        shell: pwsh
-        run: |
-          $url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
-          Invoke-WebRequest -Uri $url -OutFile ffmpeg.zip
-          Expand-Archive -Path ffmpeg.zip -DestinationPath ffmpeg_dl -Force
-          $exe = Get-ChildItem -Recurse ffmpeg_dl -Filter ffmpeg.exe | Select-Object -First 1
-          if (-not $exe) { throw "ffmpeg.exe not found in the downloaded archive" }
-          Copy-Item $exe.FullName src-tauri\ffmpeg.exe -Force
-          $size = [math]::Round((Get-Item src-tauri\ffmpeg.exe).Length / 1MB, 1)
-          Write-Host "Bundled ffmpeg.exe ($size MB)"
+      # ffmpeg はもう同梱しない。アプリが初回利用時に上流 (BtbN) から取得し、
+      # %LOCALAPPDATA% にキャッシュする（更新で消えない・配布物が軽量・GPL 再配布も回避）。
 
       - name: Tauri build (release)
         run: pnpm tauri build
@@ -67,11 +56,33 @@ jobs:
           # Tauri 2 picks these up; keep the binary lean.
           CARGO_TERM_COLOR: always
 
+      # ポータブル配布: 標準 exe ＋ ポータブル判定マーカー (portable.txt) を zip 化。
+      # アプリ内アップデートはこの zip を取得して exe を自己差し替えする。
+      - name: Create portable zip
+        shell: pwsh
+        run: |
+          $ver = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $dir = "portable_pkg"
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          Copy-Item src-tauri/target/release/crateforge.exe "$dir/crateforge.exe" -Force
+          Set-Content -Path "$dir/portable.txt" -Encoding utf8 -Value @(
+            "Crateforge (portable)",
+            "",
+            "Keep crateforge.exe and portable.txt together in the same folder.",
+            "In-app updates replace this exe directly (no installer needed).",
+            "ffmpeg is fetched on first conversion and kept across updates."
+          )
+          $zip = "Crateforge_${ver}_x64_portable.zip"
+          Compress-Archive -Path "$dir/*" -DestinationPath $zip -Force
+          Write-Host "Created $zip"
+
       - name: Show built artifacts
         shell: pwsh
         run: |
           Write-Host "=== Standalone exe ==="
           Get-ChildItem src-tauri\target\release\*.exe | Format-Table Name, Length
+          Write-Host "=== Portable zip ==="
+          Get-ChildItem Crateforge_*_x64_portable.zip -ErrorAction SilentlyContinue | Format-Table Name, Length
           Write-Host "=== MSI ==="
           Get-ChildItem -Recurse src-tauri\target\release\bundle\msi\*.msi -ErrorAction SilentlyContinue | Format-Table Name, Length
           Write-Host "=== NSIS ==="
@@ -82,6 +93,14 @@ jobs:
         with:
           name: crateforge-windows-exe
           path: src-tauri/target/release/crateforge.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload portable zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: crateforge-windows-portable
+          path: Crateforge_*_x64_portable.zip
           if-no-files-found: error
           retention-days: 30
 
@@ -120,6 +139,7 @@ jobs:
           body_path: release_body.md
           generate_release_notes: true
           files: |
+            Crateforge_*_x64_portable.zip
             src-tauri/target/release/crateforge.exe
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/nsis/*.exe

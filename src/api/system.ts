@@ -8,8 +8,10 @@ export interface UpdateInfo {
   releaseUrl: string;
   releaseNotes: string;
   publishedAt: string | null;
-  /** この OS 向けインストーラの直接ダウンロード URL（無ければ null）。 */
+  /** この OS 向けの直接ダウンロード URL（無ければ null）。ポータブルなら zip。 */
   downloadUrl: string | null;
+  /** ポータブル運用（exe の隣に portable.txt）か。 */
+  portable: boolean;
 }
 
 export async function checkForUpdate(): Promise<UpdateInfo> {

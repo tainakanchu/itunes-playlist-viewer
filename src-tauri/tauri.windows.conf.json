@@ -1,5 +1,9 @@
 {
   "bundle": {
-    "resources": ["ffmpeg.exe"]
+    "windows": {
+      "nsis": {
+        "installerHooks": "nsis-hooks.nsh"
+      }
+    }
   }
 }
