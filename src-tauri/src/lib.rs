@@ -5,6 +5,7 @@ mod cd_ripper;
 mod commands;
 mod converter;
 mod db;
+mod ffmpeg;
 mod importer;
 mod itunes_xml;
 mod metadata;
@@ -28,6 +29,9 @@ fn not_found() -> tauri::http::Response<Vec<u8>> {
 }
 
 pub fn run() {
+    // 前回のポータブル自己アップデートで残った旧 exe を掃除する。
+    updater::cleanup_stale();
+
     let audio_player = Mutex::new(audio::AudioPlayer::new());
     let smtc_state = Mutex::new(smtc::SmtcState::new());
 
@@ -131,6 +135,9 @@ pub fn run() {
             commands::ripping::rip_cd,
             // conversion
             commands::convert::convert_tracks,
+            // ffmpeg (resolution / on-demand download)
+            commands::ffmpeg::get_ffmpeg_status,
+            commands::ffmpeg::download_ffmpeg,
             // audio analysis
             commands::analysis::analyze_tracks,
             commands::analysis::get_analysis,

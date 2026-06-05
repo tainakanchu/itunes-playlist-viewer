@@ -1043,6 +1043,303 @@ input {
 }
 
 /* ============================================================
+   Settings (Preferences) modal
+   ============================================================ */
+.settings-modal {
+  width: 760px;
+  height: 80vh;
+}
+.settings-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.settings-nav {
+  width: 184px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--bd);
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.settings-navitem {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: none;
+  border: none;
+  color: var(--tx2);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+.settings-navitem svg {
+  color: var(--mut);
+}
+.settings-navitem:hover {
+  background: var(--hover);
+  color: var(--tx);
+}
+.settings-navitem.on {
+  background: var(--ac-13);
+  color: var(--ac);
+}
+.settings-navitem.on svg {
+  color: var(--ac);
+}
+.settings-content {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 18px 22px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--bd);
+}
+.settings-rowtext {
+  min-width: 0;
+}
+.settings-rowtitle {
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--tx);
+}
+.settings-rowdesc {
+  font-size: 12px;
+  color: var(--mut);
+  margin-top: 3px;
+  line-height: 1.5;
+  max-width: 460px;
+}
+.settings-rowctl {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+.settings-subrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0 2px;
+}
+.settings-pathrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.settings-path {
+  font-size: 12px;
+  color: var(--tx2);
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+}
+
+/* toggle switch */
+.settings-toggle {
+  width: 42px;
+  height: 24px;
+  border-radius: 13px;
+  background: var(--bg3);
+  border: 1px solid var(--bd-strong);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.settings-toggle .knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--tx2);
+  transition: transform 0.15s, background 0.15s;
+}
+.settings-toggle.on {
+  background: var(--ac);
+  border-color: var(--ac);
+}
+.settings-toggle.on .knob {
+  transform: translateX(18px);
+  background: var(--on-ac);
+}
+
+.settings-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 650;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--bg3);
+  color: var(--tx2);
+  font-family: var(--mono);
+}
+.settings-badge.ok {
+  background: var(--ac-13);
+  color: var(--ac);
+}
+.settings-badge.warn {
+  background: rgba(224, 163, 60, 0.16);
+  color: var(--warn);
+}
+
+.settings-kv {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 0 2px;
+}
+.settings-kv > div {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+}
+.settings-kv .k {
+  width: 60px;
+  color: var(--mut);
+  flex-shrink: 0;
+}
+.settings-kv .v {
+  color: var(--tx2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-kv .v.mono {
+  font-family: var(--mono);
+}
+
+.settings-note {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  margin: 14px 0;
+  padding: 11px 13px;
+  background: var(--bg3);
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--tx2);
+  line-height: 1.6;
+}
+.settings-note svg {
+  color: var(--ac);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.settings-note code {
+  font-family: var(--mono);
+  background: var(--bg);
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 11px;
+}
+
+.settings-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+.settings-progress {
+  font-size: 12px;
+  color: var(--tx2);
+  font-family: var(--mono);
+}
+
+.settings-about {
+  text-align: center;
+  padding: 12px 0 22px;
+  border-bottom: 1px solid var(--bd);
+}
+.settings-appname {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  background: linear-gradient(90deg, var(--ac), var(--ac-hi));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.settings-ver {
+  font-size: 12px;
+  color: var(--mut);
+  font-family: var(--mono);
+  margin-top: 2px;
+}
+.settings-tagline {
+  font-size: 12.5px;
+  color: var(--tx2);
+  max-width: 420px;
+  margin: 12px auto 16px;
+  line-height: 1.6;
+}
+.settings-sectitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--mut);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin: 18px 0 10px;
+}
+.settings-credits {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.settings-credit {
+  padding: 9px 12px;
+  background: var(--bg3);
+  border: 1px solid var(--bd);
+  border-radius: 9px;
+}
+.settings-credit .cr-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.settings-credit .cr-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--tx);
+}
+.settings-credit .cr-lic {
+  font-size: 11px;
+  color: var(--ac);
+  font-family: var(--mono);
+  flex-shrink: 0;
+}
+.settings-credit .cr-note {
+  font-size: 11.5px;
+  color: var(--mut);
+  margin-top: 3px;
+}
+.settings-fine {
+  font-size: 11.5px;
+  color: var(--mut);
+  line-height: 1.6;
+  margin-top: 16px;
+}
+
+/* ============================================================
    Right rail (Now Playing / Up Next / Crate)
    ============================================================ */
 .cb-rail {
