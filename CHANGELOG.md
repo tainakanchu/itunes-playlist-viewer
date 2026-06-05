@@ -10,6 +10,42 @@ Each release is documented in both Japanese and English.
 
 ## [Unreleased]
 
+## [v0.1.0] - 2026-06-05
+
+### 日本語
+
+#### 追加
+- **DJ 向け音声解析**: 純 Rust の DSP で BPM / キー (Camelot) / エネルギー / ラウドネス と類似度ベクトルを解析します。再生した曲・★4 以上・右クリック「Analyze」をきっかけに「よく使う曲」だけをバックグラウンドで解析（進捗をツールバーに表示）。**Key / Energy** 列を追加しました。
+- **類似度サジェスト**: 右レールに **Similar** タブを追加。曲を右クリック →「Find similar」で、Camelot キー互換 + テンポ近接の「次の一手」を提示します（Harmonic トグルで絞り込み）。結果はクレートやキューに追加できます。
+- **スムーズな並び替え (smooth set)**: クレートを貪欲最近傍で滑らかな流れに自動ソートする「smooth」ボタンを追加。
+- **検索フィルタ構文**: `bpm:120-128` / `key:8A` / `energy:60-100` で解析値による絞り込みができます（テキスト検索と AND 結合）。
+- **実波形 + ReplayGain**: プレイヤーの波形が解析ピークによる実波形になりました。ReplayGain（曲ごとの音量正規化、−18 LUFS 基準）のトグルを追加。
+- **再生実績の記録**: アプリ内での再生で再生回数 / 最終再生日時 / スキップ数を記録するようになりました。**Last Played** 列とソートを追加。
+- **BPM タグの読み取り**: 取り込み時にファイルの BPM タグ (TBPM / tmpo / Vorbis BPM) を読むようになりました。
+- **ファイル自動整理**: 整理先フォルダを設定すると、取り込み・編集時に `<整理先>/<アルバムアーティスト>/<アルバム>/` へ iTunes 準拠のリネームで配置します。
+- **コンテキストメニュー刷新**: レーティング、ネストしたプレイリストのサブメニュー、最近入れたプレイリスト、アプリケーションキー / Shift+F10 でのキーボード操作に対応。
+
+#### 修正
+- 再生まわりを全体的に修正しました: キューの整合、シャッフル / リピート、シーク、前へ / 次へ、Up Next からの頭出しなど。
+
+---
+
+### English
+
+#### Added
+- **Audio analysis for DJing**: a pure-Rust DSP pipeline estimates BPM / key (Camelot) / energy / loudness and a similarity vector. Only "hot" tracks are analyzed in the background — triggered by playing, a ≥4★ rating, or a right-click "Analyze" (progress shown in the toolbar). Adds **Key / Energy** columns.
+- **Similarity suggestions**: a new **Similar** rail tab. Right-click a track → "Find similar" to surface Camelot-compatible, tempo-close "next picks" (with a Harmonic toggle); results can be added to the crate or queue.
+- **Smooth set ordering**: a "smooth" button reorders the crate into a greedy nearest-neighbor flow.
+- **Search filter syntax**: `bpm:120-128` / `key:8A` / `energy:60-100` filter by analyzed values (ANDed with the text search).
+- **Real waveform + ReplayGain**: the player waveform now renders the analyzed peaks, and a ReplayGain toggle (per-track volume normalization, −18 LUFS reference) was added.
+- **Play history**: in-app playback now records play count / last played / skip count. Adds a **Last Played** column and sort.
+- **BPM tag reading**: imported files now have their BPM tag (TBPM / tmpo / Vorbis BPM) read.
+- **Automatic file organization**: with an organize root set, imports/edits relocate files into `<root>/<Album Artist>/<Album>/` with iTunes-style renaming.
+- **Reworked context menu**: rating, a nested playlist submenu, recently-used playlists, and keyboard operation via the Application key / Shift+F10.
+
+#### Fixed
+- A broad fix to playback: queue consistency, shuffle / repeat, seeking, previous / next, and jumping into a position from Up Next.
+
 ## [v0.0.4] - 2026-05-30
 
 ### 日本語
