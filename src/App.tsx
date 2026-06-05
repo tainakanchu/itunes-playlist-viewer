@@ -59,6 +59,8 @@ export default function App() {
   const PAGE_SIZE = 500;
   const pollRef = useRef<ReturnType<typeof setInterval>>(undefined);
   const advanceRef = useRef<ReturnType<typeof setInterval>>(undefined);
+  // 自動 XML エクスポート用: ライブラリに変更があったか。
+  const libraryDirtyRef = useRef(false);
   const [reloadCount, setReloadCount] = useState(0);
   const [ripOpen, setRipOpen] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -287,15 +289,29 @@ export default function App() {
     (async () => {
       const win = getCurrentWindow();
       unlisten = await win.onCloseRequested(async (event) => {
-        const pending = useStore.getState().pendingUpdate;
-        if (!pending) return; // 予約が無ければ通常どおり閉じる
+        const st = useStore.getState();
+        const pending = st.pendingUpdate;
+        const needsExport =
+          st.autoExportEnabled && !!st.autoExportPath && libraryDirtyRef.current;
+        if (!pending && !needsExport) return; // 何も無ければ通常どおり閉じる
         event.preventDefault();
-        setInstalling(true);
-        try {
-          await playbackApi.stop().catch(() => {});
-          await systemApi.downloadAndRunUpdate(pending.url);
-        } catch (e) {
-          console.error("update on close failed:", e);
+        // 閉じる前に最新のライブラリを書き出しておく。
+        if (needsExport && st.autoExportPath) {
+          try {
+            await libraryApi.exportLibrary(st.autoExportPath);
+            libraryDirtyRef.current = false;
+          } catch (e) {
+            console.error("auto-export on close failed:", e);
+          }
+        }
+        if (pending) {
+          setInstalling(true);
+          try {
+            await playbackApi.stop().catch(() => {});
+            await systemApi.downloadAndRunUpdate(pending.url);
+          } catch (e) {
+            console.error("update on close failed:", e);
+          }
         }
         await win.destroy();
       });
@@ -319,9 +335,27 @@ export default function App() {
   }, []);
 
   const triggerReload = useCallback(() => {
+    libraryDirtyRef.current = true; // 変更があったので次回の自動エクスポート対象。
     setReloadCount((c) => c + 1);
     reloadPlaylists();
   }, [reloadPlaylists]);
+
+  // iTunes 互換 XML の自動エクスポート: 変更があったときだけ、適度な間隔で書き出す。
+  useEffect(() => {
+    if (!isTauri) return;
+    const INTERVAL_MS = 30 * 60 * 1000; // 30 分
+    const id = setInterval(async () => {
+      const { autoExportEnabled, autoExportPath } = useStore.getState();
+      if (!autoExportEnabled || !autoExportPath || !libraryDirtyRef.current) return;
+      try {
+        await libraryApi.exportLibrary(autoExportPath);
+        libraryDirtyRef.current = false;
+      } catch (e) {
+        console.error("auto-export failed:", e);
+      }
+    }, INTERVAL_MS);
+    return () => clearInterval(id);
+  }, []);
 
   const handleLoadMore = useCallback(() => {
     loadTracks(false);

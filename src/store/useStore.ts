@@ -32,6 +32,9 @@ interface PersistedSettings {
   recentPlaylistIds: number[];
   // たたんでいるプレイリストフォルダの playlistId
   collapsedFolders: number[];
+  // iTunes 互換 XML の自動エクスポート
+  autoExportEnabled: boolean;
+  autoExportPath: string | null;
 }
 
 // 「前回入れたプレイリスト」ショートカットで保持する件数
@@ -109,6 +112,7 @@ interface AppState extends PersistedSettings {
   setReplayGain: (on: boolean) => void;
   pushRecentPlaylist: (id: number) => void;
   toggleFolder: (id: number) => void;
+  setAutoExport: (enabled: boolean, path: string | null) => void;
 
   // Analysis
   setAnalyses: (list: TrackAnalysis[]) => void;
@@ -155,6 +159,8 @@ export const useStore = create<AppState>()(
       replayGain: false,
       recentPlaylistIds: [],
       collapsedFolders: [],
+      autoExportEnabled: false,
+      autoExportPath: null,
 
       setViewMode: (mode) => set({ viewMode: mode }),
       setSelectedPlaylistId: (id) => set({ selectedPlaylistId: id }),
@@ -270,6 +276,8 @@ export const useStore = create<AppState>()(
             ? state.collapsedFolders.filter((f) => f !== id)
             : [...state.collapsedFolders, id],
         })),
+      setAutoExport: (autoExportEnabled, autoExportPath) =>
+        set({ autoExportEnabled, autoExportPath }),
 
       setAnalyses: (list) =>
         set({ analysisByTrack: new Map(list.map((a) => [a.trackId, a])) }),
@@ -281,7 +289,7 @@ export const useStore = create<AppState>()(
     {
       name: "itunes-viewer-settings",
       storage: createJSONStorage(() => localStorage),
-      version: 5,
+      version: 6,
       partialize: (state) =>
         ({
           fields: state.fields,
@@ -296,6 +304,8 @@ export const useStore = create<AppState>()(
           replayGain: state.replayGain,
           recentPlaylistIds: state.recentPlaylistIds,
           collapsedFolders: state.collapsedFolders,
+          autoExportEnabled: state.autoExportEnabled,
+          autoExportPath: state.autoExportPath,
         }) satisfies PersistedSettings,
       // v1(visibleColumns) からの移行: 旧キーは破棄してデフォルトに倒す。
       // v3: recentPlaylistIds を追加（旧データには無いので配列で補完）。
@@ -315,6 +325,11 @@ export const useStore = create<AppState>()(
         if (version < 5 && persisted && typeof persisted === "object") {
           const p = persisted as Record<string, unknown>;
           if (!Array.isArray(p.collapsedFolders)) p.collapsedFolders = [];
+        }
+        if (version < 6 && persisted && typeof persisted === "object") {
+          const p = persisted as Record<string, unknown>;
+          if (typeof p.autoExportEnabled !== "boolean") p.autoExportEnabled = false;
+          if (typeof p.autoExportPath !== "string") p.autoExportPath = null;
         }
         return persisted as PersistedSettings;
       },
