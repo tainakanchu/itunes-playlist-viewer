@@ -10,6 +10,28 @@ Each release is documented in both Japanese and English.
 
 ## [Unreleased]
 
+## [v0.2.1] - 2026-06-06
+
+### 日本語
+
+#### 追加
+- **キーボードでの複数選択**: 曲リストで **↑ / ↓** でカーソル移動、**Shift + ↑ / ↓** で範囲拡張、**Ctrl/Cmd + A** で全選択できるようになりました。移動先へ自動スクロールします。
+
+#### 変更
+- **Shift クリックの挙動を自然に**: 直前にクリックした行を起点（アンカー）として固定し、Shift クリックで何度でも同じ起点から範囲を伸縮できるようにしました。**Shift + Ctrl/Cmd クリック**で既存の選択へ範囲を追加できます。
+- **カバー表示をアルバム単位に集約**: 同じアルバムを 1 枚のカードにまとめ、**クリックすると中の曲一覧がその場で展開**します（曲数バッジ・hover の再生ボタン・アルバムごとクレート追加つき）。展開した各曲は BPM・時間・クレート追加を備え、ダブルクリックでアルバムを再生します。
+- 矢印キーを選択操作に使うため、これまで ↑ / ↓ に割り当てていた音量調整を外しました（音量はプレイヤーバーで操作できます）。
+
+### English
+
+#### Added
+- **Keyboard multi-select**: in the track list, **↑ / ↓** move the cursor, **Shift + ↑ / ↓** extend the selection, and **Ctrl/Cmd + A** selects all, with scroll-into-view.
+
+#### Changed
+- **More natural Shift-click**: the previously clicked row is kept as a fixed anchor, so Shift-clicking re-extends the range from the same start; **Shift + Ctrl/Cmd-click** adds the range onto the existing selection.
+- **Album-merged covers view**: tracks from the same album collapse into one card that **expands an inline track list on click** (with a track-count badge, a hover play button, and add-whole-album-to-crate). Each expanded track shows BPM / time / crate-add and plays the album on double-click.
+- Removed the old ↑ / ↓ volume shortcut so the arrow keys drive selection (volume lives on the player bar).
+
 ## [v0.2.0] - 2026-06-06
 
 ### 日本語

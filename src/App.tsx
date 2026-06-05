@@ -43,7 +43,6 @@ export default function App() {
     setViewMode,
     setSelectedPlaylistId,
     volume,
-    setVolume,
     shuffle,
     setShuffle,
     repeat,
@@ -425,17 +424,9 @@ export default function App() {
         const next = order[(i + 1) % order.length];
         setRepeat(next);
         if (isTauri) playbackApi.setRepeat(next);
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        const v = Math.min(1, volume + 0.05);
-        setVolume(v);
-        if (isTauri) playbackApi.setVolume(v);
-      } else if (e.key === "ArrowDown") {
-        e.preventDefault();
-        const v = Math.max(0, volume - 0.05);
-        setVolume(v);
-        if (isTauri) playbackApi.setVolume(v);
       }
+      // 矢印キーは TrackTable の選択移動に使うのでここでは扱わない。
+      // 音量は PlayerBar の +/- とスライダーで調整できる。
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
@@ -446,10 +437,8 @@ export default function App() {
     tracks,
     shuffle,
     repeat,
-    volume,
     setShuffle,
     setRepeat,
-    setVolume,
     setSearchQuery,
     setViewMode,
     setSelectedPlaylistId,
