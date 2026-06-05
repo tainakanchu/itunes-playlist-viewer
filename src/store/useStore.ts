@@ -12,6 +12,7 @@ import type {
   SortField,
   SortOrder,
   RepeatMode,
+  TrackAnalysis,
 } from "../types";
 import { DEFAULT_FIELDS } from "../types";
 
@@ -25,6 +26,8 @@ interface PersistedSettings {
   volume: number;
   shuffle: boolean;
   repeat: RepeatMode;
+  // ReplayGain（音量正規化）を有効にするか
+  replayGain: boolean;
   // 直近に「プレイリストへ追加」したプレイリストID（新しい順 / 最大 MAX_RECENT_PLAYLISTS 件）
   recentPlaylistIds: number[];
 }
@@ -54,6 +57,12 @@ interface AppState extends PersistedSettings {
   crate: Track[];
   railTab: RailTab;
 
+  // 音声解析 (BPM/key/energy) のキャッシュと進捗 — セッション内のみ、永続化しない
+  analysisByTrack: Map<number, TrackAnalysis>;
+  analysisActive: { done: number; total: number } | null;
+  // Similar タブの基準トラック。null なら再生中の曲を基準にする。
+  similarBaseTrackId: number | null;
+
   // Actions
   setViewMode: (mode: ViewMode) => void;
   setSelectedPlaylistId: (id: number | null) => void;
@@ -76,6 +85,7 @@ interface AppState extends PersistedSettings {
   addToCrate: (track: Track) => void;
   removeFromCrate: (trackId: number) => void;
   reorderCrate: (from: number, to: number) => void;
+  setCrateOrder: (ids: number[]) => void;
   clearCrate: () => void;
 
   // Persisted settings
@@ -92,7 +102,13 @@ interface AppState extends PersistedSettings {
   setVolume: (v: number) => void;
   setShuffle: (on: boolean) => void;
   setRepeat: (mode: RepeatMode) => void;
+  setReplayGain: (on: boolean) => void;
   pushRecentPlaylist: (id: number) => void;
+
+  // Analysis
+  setAnalyses: (list: TrackAnalysis[]) => void;
+  setAnalysisActive: (v: { done: number; total: number } | null) => void;
+  setSimilarBase: (trackId: number | null) => void;
 }
 
 export const useStore = create<AppState>()(
@@ -115,6 +131,9 @@ export const useStore = create<AppState>()(
       },
       crate: [],
       railTab: "crate",
+      analysisByTrack: new Map(),
+      analysisActive: null,
+      similarBaseTrackId: null,
 
       // Persisted
       fields: DEFAULT_FIELDS,
@@ -126,6 +145,7 @@ export const useStore = create<AppState>()(
       volume: 1.0,
       shuffle: false,
       repeat: "off",
+      replayGain: false,
       recentPlaylistIds: [],
 
       setViewMode: (mode) => set({ viewMode: mode }),
@@ -179,6 +199,21 @@ export const useStore = create<AppState>()(
           next.splice(to, 0, m);
           return { crate: next };
         }),
+      // 与えられた id 順に crate を並べ替える (id に無い曲は元順で末尾に残す)。
+      setCrateOrder: (ids) =>
+        set((state) => {
+          const byId = new Map(state.crate.map((t) => [t.trackId, t]));
+          const seen = new Set(ids);
+          const next: Track[] = [];
+          for (const id of ids) {
+            const t = byId.get(id);
+            if (t) next.push(t);
+          }
+          for (const t of state.crate) {
+            if (!seen.has(t.trackId)) next.push(t);
+          }
+          return { crate: next };
+        }),
       clearCrate: () => set({ crate: [] }),
 
       // Persisted settings
@@ -213,6 +248,7 @@ export const useStore = create<AppState>()(
       setVolume: (volume) => set({ volume }),
       setShuffle: (shuffle) => set({ shuffle }),
       setRepeat: (repeat) => set({ repeat }),
+      setReplayGain: (replayGain) => set({ replayGain }),
       pushRecentPlaylist: (id) =>
         set((state) => ({
           recentPlaylistIds: [
@@ -220,11 +256,17 @@ export const useStore = create<AppState>()(
             ...state.recentPlaylistIds.filter((p) => p !== id),
           ].slice(0, MAX_RECENT_PLAYLISTS),
         })),
+
+      setAnalyses: (list) =>
+        set({ analysisByTrack: new Map(list.map((a) => [a.trackId, a])) }),
+      setAnalysisActive: (v) => set({ analysisActive: v }),
+      setSimilarBase: (trackId) =>
+        set({ similarBaseTrackId: trackId, railTab: "similar" }),
     }),
     {
       name: "itunes-viewer-settings",
       storage: createJSONStorage(() => localStorage),
-      version: 3,
+      version: 4,
       partialize: (state) =>
         ({
           fields: state.fields,
@@ -236,6 +278,7 @@ export const useStore = create<AppState>()(
           volume: state.volume,
           shuffle: state.shuffle,
           repeat: state.repeat,
+          replayGain: state.replayGain,
           recentPlaylistIds: state.recentPlaylistIds,
         }) satisfies PersistedSettings,
       // v1(visibleColumns) からの移行: 旧キーは破棄してデフォルトに倒す。

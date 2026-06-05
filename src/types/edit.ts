@@ -42,7 +42,8 @@ export type SortField =
   | "bpm"
   | "trackNumber"
   | "totalTimeMs"
-  | "dateAdded";
+  | "dateAdded"
+  | "lastPlayed";
 
 export type SortOrder = "asc" | "desc";
 
@@ -51,6 +52,8 @@ export type SortOrder = "asc" | "desc";
 // ここに含めない。ここで定義するのは右側の固定幅フィールド群。
 export type FieldKey =
   | "bpm"
+  | "key"
+  | "energy"
   | "album"
   | "genre"
   | "rating"
@@ -59,7 +62,8 @@ export type FieldKey =
   | "time"
   | "albumArtist"
   | "trackNumber"
-  | "dateAdded";
+  | "dateAdded"
+  | "lastPlayed";
 
 export interface FieldDef {
   key: FieldKey;
@@ -72,6 +76,9 @@ export interface FieldDef {
 
 export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
   bpm: { key: "bpm", label: "BPM", width: 64, sortField: "bpm" },
+  // key / energy は track_analysis 由来。tracks テーブルに無いのでソート対象外 (sortField: null)。
+  key: { key: "key", label: "Key", width: 56, sortField: null },
+  energy: { key: "energy", label: "Energy", width: 72, sortField: null },
   album: { key: "album", label: "Album", width: 168, sortField: "album" },
   genre: { key: "genre", label: "Genre", width: 110, sortField: "genre" },
   rating: { key: "rating", label: "Rating", width: 90, sortField: "rating" },
@@ -81,11 +88,14 @@ export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
   albumArtist: { key: "albumArtist", label: "Album Artist", width: 150, sortField: "albumArtist" },
   trackNumber: { key: "trackNumber", label: "#", width: 44, sortField: "trackNumber" },
   dateAdded: { key: "dateAdded", label: "Date Added", width: 104, sortField: "dateAdded" },
+  lastPlayed: { key: "lastPlayed", label: "Last Played", width: 104, sortField: "lastPlayed" },
 };
 
 /// ColumnPicker の "Available" 列挙順。
 export const ALL_FIELDS: FieldKey[] = [
   "bpm",
+  "key",
+  "energy",
   "album",
   "genre",
   "rating",
@@ -95,6 +105,7 @@ export const ALL_FIELDS: FieldKey[] = [
   "albumArtist",
   "trackNumber",
   "dateAdded",
+  "lastPlayed",
 ];
 
 /// 既定の表示列（順序 = 表示順）。

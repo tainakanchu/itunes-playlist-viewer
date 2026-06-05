@@ -40,7 +40,73 @@ fn sort_field_to_column(sort_field: &str) -> Option<(&'static str, bool)> {
         "trackNumber" => Some(("track_number", false)),
         "totalTimeMs" => Some(("total_time_ms", false)),
         "dateAdded" => Some(("date_added", true)),
+        "lastPlayed" => Some(("last_played", true)),
         _ => None,
+    }
+}
+
+/// 検索トークンが bpm:/key:/energy: フィルタなら (SQL 句, バインド値) を返す。
+/// 句は相関サブクエリで track_analysis を参照する (SELECT 句や JOIN を変えずに済む)。
+fn parse_analysis_filter(tok: &str) -> Option<(String, Vec<rusqlite::types::Value>)> {
+    use rusqlite::types::Value;
+    let (kind, val) = tok.split_once(':')?;
+    match kind {
+        "bpm" => {
+            let (lo, hi) = parse_range(val, 2.0)?;
+            Some((
+                "(COALESCE((SELECT bpm FROM track_analysis WHERE track_id = tracks.track_id), \
+                 tracks.bpm) BETWEEN ? AND ?)"
+                    .to_string(),
+                vec![Value::Real(lo), Value::Real(hi)],
+            ))
+        }
+        "key" => {
+            let k = val.trim().to_uppercase();
+            if k.is_empty() {
+                return None;
+            }
+            Some((
+                "tracks.track_id IN (SELECT track_id FROM track_analysis WHERE UPPER(key_camelot) = ?)"
+                    .to_string(),
+                vec![Value::Text(k)],
+            ))
+        }
+        "energy" => {
+            let (lo, hi) = parse_energy_range(val)?;
+            Some((
+                "tracks.track_id IN (SELECT track_id FROM track_analysis WHERE energy BETWEEN ? AND ?)"
+                    .to_string(),
+                vec![Value::Real(lo), Value::Real(hi)],
+            ))
+        }
+        _ => None,
+    }
+}
+
+/// "120-128" → (120,128)、"128" → (128-pad, 128+pad)。
+fn parse_range(s: &str, pad: f64) -> Option<(f64, f64)> {
+    let s = s.trim();
+    if let Some((a, b)) = s.split_once('-') {
+        let lo: f64 = a.trim().parse().ok()?;
+        let hi: f64 = b.trim().parse().ok()?;
+        Some((lo.min(hi), lo.max(hi)))
+    } else {
+        let v: f64 = s.parse().ok()?;
+        Some((v - pad, v + pad))
+    }
+}
+
+/// energy はパーセント(>1)を 0..1 に正規化。範囲 or 単一値(±0.05)。
+fn parse_energy_range(s: &str) -> Option<(f64, f64)> {
+    let norm = |x: f64| if x > 1.0 { x / 100.0 } else { x };
+    let s = s.trim();
+    if let Some((a, b)) = s.split_once('-') {
+        let lo = norm(a.trim().parse().ok()?);
+        let hi = norm(b.trim().parse().ok()?);
+        Some((lo.min(hi), lo.max(hi)))
+    } else {
+        let v = norm(s.parse::<f64>().ok()?);
+        Some(((v - 0.05).max(0.0), (v + 0.05).min(1.0)))
     }
 }
 
@@ -209,7 +275,7 @@ impl Database {
                     album, genre, year, rating, play_count, skip_count, total_time_ms,
                     date_added, date_modified, bpm, comments, location_raw, location_path,
                     track_type, disabled, compilation, disc_number, disc_count,
-                    track_number, track_count, file_exists
+                    track_number, track_count, file_exists, last_played
              FROM tracks ORDER BY {} LIMIT ?1 OFFSET ?2",
             order_by
         );
@@ -232,29 +298,33 @@ impl Database {
         use rusqlite::types::Value;
 
         const COLS: [&str; 6] = ["name", "artist", "album", "album_artist", "genre", "comments"];
-        let tokens: Vec<&str> = query.split_whitespace().collect();
         let order_by = build_order_by(sort_field, sort_order, "", "name COLLATE NOCASE ASC");
 
+        // 各トークンを AND 結合。bpm:/key:/energy: は track_analysis への絞り込み、
+        // それ以外はテキスト 6 列への部分一致 (OR)。バインド値は句の出現順に積む。
+        let mut clauses: Vec<String> = Vec::new();
         let mut bind: Vec<Value> = Vec::new();
-        let where_sql = if tokens.is_empty() {
-            "1=1".to_string()
-        } else {
-            tokens
+        for tok in query.split_whitespace() {
+            if let Some((clause, mut binds)) = parse_analysis_filter(tok) {
+                clauses.push(clause);
+                bind.append(&mut binds);
+                continue;
+            }
+            let pat = format!("%{}%", tok);
+            let group = COLS
                 .iter()
-                .map(|tok| {
-                    let pat = format!("%{}%", tok);
-                    let group = COLS
-                        .iter()
-                        .map(|c| {
-                            bind.push(Value::Text(pat.clone()));
-                            format!("{} LIKE ?", c)
-                        })
-                        .collect::<Vec<_>>()
-                        .join(" OR ");
-                    format!("({})", group)
+                .map(|c| {
+                    bind.push(Value::Text(pat.clone()));
+                    format!("{} LIKE ?", c)
                 })
                 .collect::<Vec<_>>()
-                .join(" AND ")
+                .join(" OR ");
+            clauses.push(format!("({})", group));
+        }
+        let where_sql = if clauses.is_empty() {
+            "1=1".to_string()
+        } else {
+            clauses.join(" AND ")
         };
         bind.push(Value::Integer(limit));
         bind.push(Value::Integer(offset));
@@ -264,7 +334,7 @@ impl Database {
                     album, genre, year, rating, play_count, skip_count, total_time_ms,
                     date_added, date_modified, bpm, comments, location_raw, location_path,
                     track_type, disabled, compilation, disc_number, disc_count,
-                    track_number, track_count, file_exists
+                    track_number, track_count, file_exists, last_played
              FROM tracks
              WHERE {}
              ORDER BY {} LIMIT ? OFFSET ?",
@@ -281,7 +351,7 @@ impl Database {
                     album, genre, year, rating, play_count, skip_count, total_time_ms,
                     date_added, date_modified, bpm, comments, location_raw, location_path,
                     track_type, disabled, compilation, disc_number, disc_count,
-                    track_number, track_count, file_exists
+                    track_number, track_count, file_exists, last_played
              FROM tracks WHERE track_id = ?1",
         )?;
 
@@ -298,7 +368,7 @@ impl Database {
                     album, genre, year, rating, play_count, skip_count, total_time_ms,
                     date_added, date_modified, bpm, comments, location_raw, location_path,
                     track_type, disabled, compilation, disc_number, disc_count,
-                    track_number, track_count, file_exists
+                    track_number, track_count, file_exists, last_played
              FROM tracks ORDER BY track_id ASC",
         )?;
         let rows = stmt.query_map([], row_to_track)?;
@@ -400,6 +470,38 @@ impl Database {
         Ok(())
     }
 
+    /// アプリ内再生で「1回聴いた」と判定されたとき、play_count を +1 し
+    /// last_played を現在時刻 (ISO8601 UTC) に更新する。
+    pub fn mark_played(&self, track_id: i64) -> Result<()> {
+        self.conn.execute(
+            "UPDATE tracks SET play_count = COALESCE(play_count, 0) + 1, last_played = ?1 WHERE track_id = ?2",
+            params![
+                chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                track_id
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// 曲を十分聴かずにスキップしたとき skip_count を +1 する。
+    pub fn mark_skipped(&self, track_id: i64) -> Result<()> {
+        self.conn.execute(
+            "UPDATE tracks SET skip_count = COALESCE(skip_count, 0) + 1 WHERE track_id = ?1",
+            params![track_id],
+        )?;
+        Ok(())
+    }
+
+    /// 取り込み時にタグから読んだ BPM を後付けで設定する (既存 add_imported_track は
+    /// BPM を扱わないため、挿入後にこのメソッドで埋める)。
+    pub fn set_track_bpm(&self, track_id: i64, bpm: i64) -> Result<()> {
+        self.conn.execute(
+            "UPDATE tracks SET bpm = ?1 WHERE track_id = ?2",
+            params![bpm, track_id],
+        )?;
+        Ok(())
+    }
+
     /// genre を空白区切りタグ集合として扱い、tag を追加。重複は無視。
     pub fn add_genre_tag(&self, track_id: i64, tag: &str) -> Result<()> {
         let current: Option<String> = self
@@ -490,7 +592,7 @@ impl Database {
                     t.album, t.genre, t.year, t.rating, t.play_count, t.skip_count, t.total_time_ms,
                     t.date_added, t.date_modified, t.bpm, t.comments, t.location_raw, t.location_path,
                     t.track_type, t.disabled, t.compilation, t.disc_number, t.disc_count,
-                    t.track_number, t.track_count, t.file_exists
+                    t.track_number, t.track_count, t.file_exists, t.last_played
              FROM tracks t
              INNER JOIN recent_tracks rt ON t.track_id = rt.track_id
              ORDER BY rt.played_at DESC
@@ -532,5 +634,6 @@ pub fn row_to_track(row: &rusqlite::Row) -> rusqlite::Result<Track> {
         track_number: row.get(25)?,
         track_count: row.get(26)?,
         file_exists: row.get::<_, i32>(27)? != 0,
+        last_played: row.get(28)?,
     })
 }

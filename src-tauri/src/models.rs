@@ -33,6 +33,8 @@ pub struct Track {
     pub track_number: Option<i64>,
     pub track_count: Option<i64>,
     pub file_exists: bool,
+    /// アプリ内で最後に再生した時刻 (ISO8601 UTC)。未再生なら None。
+    pub last_played: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -134,6 +136,62 @@ where
 pub struct GenreTagCount {
     pub tag: String,
     pub count: i64,
+}
+
+// === Audio analysis (DJ 向け: BPM / key / energy / loudness / similarity) ===
+
+/// 1 曲の解析結果。`track_analysis` テーブルに 1:1 で保存される。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrackAnalysis {
+    pub track_id: i64,
+    /// 解析器のバージョン。アルゴリズム更新時に再解析判定へ使う。
+    pub version: i64,
+    pub analyzed_at: String,
+    /// 解析で推定した BPM。
+    pub bpm: Option<f64>,
+    /// Camelot 表記 (例 "8A")。ハーモニックミキシング用。
+    pub key_camelot: Option<String>,
+    /// 人間可読のキー名 (例 "A minor")。
+    pub key_name: Option<String>,
+    /// エネルギー (0..1)。体感の激しさ・推進力の近似。
+    pub energy: Option<f64>,
+    /// EBU R128 統合ラウドネス (LUFS)。
+    pub loudness_lufs: Option<f64>,
+    /// ReplayGain 相当のゲイン (dB)。再生時の音量正規化に使う。
+    pub replaygain_db: Option<f64>,
+    /// 類似度計算用の特徴ベクトル (正規化済み)。
+    pub vector: Vec<f64>,
+    /// 波形オーバービュー (0..1 のピーク列)。一覧取得では空 (get_analysis でのみ充填)。
+    #[serde(default)]
+    pub peaks: Vec<f32>,
+}
+
+/// 解析進捗イベント (`analysis-progress`)。RipProgress と同じノリのタグ付き enum。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "kind")]
+pub enum AnalysisProgress {
+    Start { total: usize },
+    Item { track_id: i64, done: usize, total: usize, ok: bool },
+    Finished { analyzed: usize, failed: usize },
+}
+
+/// 解析状況のサマリ (バッジ表示用)。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalysisStatus {
+    /// 現行バージョンで解析済みの曲数。
+    pub analyzed: i64,
+    /// ファイルが存在する曲の総数 (解析対象母数)。
+    pub total: i64,
+}
+
+/// 類似度検索の 1 ヒット (曲 + 距離。距離が小さいほど似ている)。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SimilarHit {
+    pub track: Track,
+    pub distance: f64,
 }
 
 // === CD / ripping models ===

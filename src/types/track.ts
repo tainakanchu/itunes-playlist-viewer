@@ -27,4 +27,5 @@ export interface Track {
   trackNumber: number | null;
   trackCount: number | null;
   fileExists: boolean;
+  lastPlayed: string | null;
 }

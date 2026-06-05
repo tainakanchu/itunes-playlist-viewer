@@ -31,7 +31,8 @@ pub fn create_tables(conn: &Connection) -> Result<()> {
             disc_count INTEGER,
             track_number INTEGER,
             track_count INTEGER,
-            file_exists INTEGER DEFAULT 1
+            file_exists INTEGER DEFAULT 1,
+            last_played TEXT
         );
 
         CREATE TABLE IF NOT EXISTS playlists (
@@ -63,6 +64,20 @@ pub fn create_tables(conn: &Connection) -> Result<()> {
             played_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
+        CREATE TABLE IF NOT EXISTS track_analysis (
+            track_id INTEGER PRIMARY KEY,
+            version INTEGER NOT NULL,
+            analyzed_at TEXT NOT NULL DEFAULT (datetime('now')),
+            bpm REAL,
+            key_camelot TEXT,
+            key_name TEXT,
+            energy REAL,
+            loudness_lufs REAL,
+            replaygain_db REAL,
+            vector TEXT,
+            peaks TEXT
+        );
+
         CREATE INDEX IF NOT EXISTS idx_tracks_name ON tracks(name);
         CREATE INDEX IF NOT EXISTS idx_tracks_artist ON tracks(artist);
         CREATE INDEX IF NOT EXISTS idx_tracks_album ON tracks(album);
@@ -71,6 +86,8 @@ pub fn create_tables(conn: &Connection) -> Result<()> {
         CREATE INDEX IF NOT EXISTS idx_playlist_tracks_pid ON playlist_tracks(playlist_id);
         CREATE INDEX IF NOT EXISTS idx_playlist_tracks_tid ON playlist_tracks(track_id);
         CREATE INDEX IF NOT EXISTS idx_recent_tracks_at ON recent_tracks(played_at);
+        CREATE INDEX IF NOT EXISTS idx_analysis_bpm ON track_analysis(bpm);
+        CREATE INDEX IF NOT EXISTS idx_analysis_key ON track_analysis(key_camelot);
         ",
     )?;
     Ok(())

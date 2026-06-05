@@ -32,6 +32,7 @@ const SORT_OPTIONS: { field: SortField; label: string }[] = [
   { field: "totalTimeMs", label: "Time" },
   { field: "trackNumber", label: "Track #" },
   { field: "dateAdded", label: "Date Added" },
+  { field: "lastPlayed", label: "Last Played" },
 ];
 
 const VIEW_TITLE: Record<ViewMode, string> = {
@@ -62,6 +63,7 @@ export function Toolbar({ onLibraryChanged, onOpenRipDialog, onOpenRulesPanel }:
     selectedPlaylistId,
     playlists,
     tracks,
+    analysisActive,
   } = useStore();
 
   const [importing, setImporting] = useState(false);
@@ -227,7 +229,7 @@ export function Toolbar({ onLibraryChanged, onOpenRipDialog, onOpenRulesPanel }:
           <input
             id="search-input"
             type="text"
-            placeholder="搜尋 / Search title, artist, album…  (/)"
+            placeholder="Search… or bpm:120-128  key:8A  energy:60-100  (/)"
             defaultValue={searchQuery}
             onChange={handleSearchChange}
             onKeyDown={handleSearchKeyDown}
@@ -375,6 +377,11 @@ export function Toolbar({ onLibraryChanged, onOpenRipDialog, onOpenRulesPanel }:
         <span className="cb-title">{title}</span>
         <span className="cb-titlesub">· {subCount}</span>
         <div className="cb-stats">
+          {analysisActive && (
+            <span className="cb-status">
+              解析中 {analysisActive.done}/{analysisActive.total}
+            </span>
+          )}
           {status && <span className="cb-status">{status}</span>}
           {stats && (
             <>

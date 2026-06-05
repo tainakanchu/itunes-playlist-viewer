@@ -2,15 +2,38 @@ use std::sync::Mutex;
 
 use tauri::AppHandle;
 
-use crate::audio::{AudioPlayer, RepeatMode};
+use crate::audio::{AudioPlayer, PlayReport, RepeatMode};
 use crate::commands::library::open_db;
+use crate::db::Database;
 use crate::models::{PlaybackState, Track};
+
+/// 再生実績 (`PlayReport`) を DB に反映する。
+/// - 曲の半分以上 (上限 4 分) 聴いた → 「再生」(play_count +1, last_played 更新)
+/// - 長さ不明なら 4 分以上で「再生」
+/// - 4 秒以上だが途中で離脱 → 「スキップ」(skip_count +1)
+/// - それ未満 → 誤操作とみなし無視
+fn apply_report(db: &Database, report: Option<PlayReport>) {
+    let Some(r) = report else {
+        return;
+    };
+    let played_threshold = if r.duration_ms > 0 {
+        (r.duration_ms / 2).min(240_000)
+    } else {
+        240_000
+    };
+    if r.played_ms >= played_threshold {
+        let _ = db.mark_played(r.track_id);
+    } else if r.played_ms >= 4_000 {
+        let _ = db.mark_skipped(r.track_id);
+    }
+}
 
 #[tauri::command]
 pub fn play_track(
     app: AppHandle,
     track_id: i64,
     player: tauri::State<'_, Mutex<AudioPlayer>>,
+    analyzer: tauri::State<'_, crate::analyzer::Analyzer>,
 ) -> Result<(), String> {
     let db = open_db(&app)?;
     let track = db
@@ -24,12 +47,20 @@ pub fn play_track(
     }
 
     let duration = track.total_time_ms.unwrap_or(0) as u64;
-    player
+    let gain_db = db
+        .get_analysis(track_id)
+        .ok()
+        .flatten()
+        .and_then(|a| a.replaygain_db);
+    let report = player
         .lock()
         .map_err(|e| e.to_string())?
-        .play(path, track_id, duration)?;
+        .play(path, track_id, duration, gain_db)?;
+    apply_report(&db, report);
 
     db.add_recent_track(track_id).map_err(|e| e.to_string())?;
+    // 再生した曲 = よく使う曲なので、未解析なら裏で解析しておく。
+    analyzer.submit(vec![track_id], false);
     Ok(())
 }
 
@@ -46,8 +77,11 @@ pub fn resume(player: tauri::State<'_, Mutex<AudioPlayer>>) -> Result<(), String
 }
 
 #[tauri::command]
-pub fn stop(player: tauri::State<'_, Mutex<AudioPlayer>>) -> Result<(), String> {
-    player.lock().map_err(|e| e.to_string())?.stop();
+pub fn stop(app: AppHandle, player: tauri::State<'_, Mutex<AudioPlayer>>) -> Result<(), String> {
+    let report = player.lock().map_err(|e| e.to_string())?.stop();
+    if let Ok(db) = open_db(&app) {
+        apply_report(&db, report);
+    }
     Ok(())
 }
 
@@ -152,7 +186,10 @@ pub fn play_next(
         play_track_by_id(&app, &player, tid)?;
         Ok(Some(tid))
     } else {
-        player.lock().map_err(|e| e.to_string())?.stop();
+        let report = player.lock().map_err(|e| e.to_string())?.stop();
+        if let Ok(db) = open_db(&app) {
+            apply_report(&db, report);
+        }
         Ok(None)
     }
 }
@@ -219,6 +256,18 @@ pub fn set_volume(
     Ok(())
 }
 
+#[tauri::command]
+pub fn set_replaygain(
+    player: tauri::State<'_, Mutex<AudioPlayer>>,
+    enabled: bool,
+) -> Result<(), String> {
+    player
+        .lock()
+        .map_err(|e| e.to_string())?
+        .set_replaygain(enabled);
+    Ok(())
+}
+
 /// フロントの polling から「曲が終わったので次に進めて」と呼ばれる。
 /// is_finished で sentinel が立っていれば次の曲を再生し、track_id を返す。
 #[tauri::command]
@@ -235,8 +284,11 @@ pub fn check_advance(
         play_track_by_id(&app, &player, tid)?;
         Ok(Some(tid))
     } else {
-        // キュー末尾 (repeat off) まで再生し終えた: 綺麗に停止状態へ。
-        player.lock().map_err(|e| e.to_string())?.stop();
+        // キュー末尾の曲が再生し終わった: 停止しつつ最後の曲を再生実績に反映する。
+        let report = player.lock().map_err(|e| e.to_string())?.stop();
+        if let Ok(db) = open_db(&app) {
+            apply_report(&db, report);
+        }
         Ok(None)
     }
 }
@@ -256,10 +308,16 @@ fn play_track_by_id(
         return Err("No file path for this track".to_string());
     }
     let duration = track.total_time_ms.unwrap_or(0) as u64;
-    player
+    let gain_db = db
+        .get_analysis(track_id)
+        .ok()
+        .flatten()
+        .and_then(|a| a.replaygain_db);
+    let report = player
         .lock()
         .map_err(|e| e.to_string())?
-        .play(path, track_id, duration)?;
+        .play(path, track_id, duration, gain_db)?;
+    apply_report(&db, report);
     db.add_recent_track(track_id).map_err(|e| e.to_string())?;
     Ok(())
 }
