@@ -10,6 +10,7 @@ interface ToolbarProps {
   onLibraryChanged: () => void;
   onOpenRipDialog: () => void;
   onOpenRulesPanel: () => void;
+  onOpenSettings: () => void;
 }
 
 function formatDuration(ms: number): string {
@@ -43,7 +44,7 @@ const VIEW_TITLE: Record<ViewMode, string> = {
   playlist: "Playlist",
 };
 
-export function Toolbar({ onLibraryChanged, onOpenRipDialog, onOpenRulesPanel }: ToolbarProps) {
+export function Toolbar({ onLibraryChanged, onOpenRipDialog, onOpenRulesPanel, onOpenSettings }: ToolbarProps) {
   const {
     viewMode,
     displayMode,
@@ -372,7 +373,7 @@ export function Toolbar({ onLibraryChanged, onOpenRipDialog, onOpenRulesPanel }:
             onClick={onOpenRulesPanel}
             title="Build playlists from YAML rules"
           >
-            <Icon name="settings" size={16} />
+            <Icon name="layers" size={16} />
           </button>
           <button
             className={"cb-btn cb-btn-iconly" + (libraryRoot ? " on" : "")}
@@ -403,6 +404,13 @@ export function Toolbar({ onLibraryChanged, onOpenRipDialog, onOpenRulesPanel }:
             }
           >
             <Icon name="clock" size={16} />
+          </button>
+          <button
+            className="cb-btn cb-btn-iconly"
+            onClick={onOpenSettings}
+            title="設定"
+          >
+            <Icon name="settings" size={16} />
           </button>
         </div>
 

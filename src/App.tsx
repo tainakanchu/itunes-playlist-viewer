@@ -12,6 +12,7 @@ import { RipDialog } from "./components/ripper/RipDialog";
 import { RulesPanel } from "./components/rules/RulesPanel";
 import { ConvertDialog } from "./components/ConvertDialog";
 import { SmartPlaylistEditor } from "./components/SmartPlaylistEditor";
+import { SettingsDialog } from "./components/SettingsDialog";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { useStore } from "./store/useStore";
 import * as libraryApi from "./api/library";
@@ -70,6 +71,7 @@ export default function App() {
     name?: string;
   } | null>(null);
   const [installing, setInstalling] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const reloadPlaylists = useCallback(async () => {
     if (!isTauri) return;
@@ -458,6 +460,7 @@ export default function App() {
           onLibraryChanged={triggerReload}
           onOpenRipDialog={() => setRipOpen(true)}
           onOpenRulesPanel={() => setRulesOpen(true)}
+          onOpenSettings={() => setSettingsOpen(true)}
         />
         {isAlbumView ? (
           <AlbumView
@@ -500,6 +503,9 @@ export default function App() {
           onClose={() => setSmartEditor(null)}
           onSaved={triggerReload}
         />
+      )}
+      {settingsOpen && (
+        <SettingsDialog onClose={() => setSettingsOpen(false)} />
       )}
       {installing && (
         <div className="modal-overlay">
