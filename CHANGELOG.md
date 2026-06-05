@@ -10,6 +10,26 @@ Each release is documented in both Japanese and English.
 
 ## [Unreleased]
 
+## [v0.1.3] - 2026-06-06
+
+### 日本語
+
+#### 追加
+- **メタデータ一括編集**: 複数曲を選んで Get Info / Cmd+I すると 1 つのエディタで編集でき、**触ったフィールドだけ**を全曲へ適用します（共通の値はプリフィル、異なる値は「複数の値」表示）。
+- **アートワーク編集**: トラックエディタにジャケット欄を追加。**クリップボードから貼り付け**、または**画像ファイルから選択**で、選択中の全曲にカバーアートを設定できます。
+- **スマートプレイリスト**: 条件（フィールド / 演算子 / 値・すべて/いずれか一致・並び替え・上限）で**自動的に中身が決まる**プレイリストを作れます。開くたびにライブラリ全体を評価するので常に最新。**BPM / Key(Camelot) / Energy / 再生回数 / レーティング**などに加え解析結果も条件に使えます。サイドバーの🎛ボタンで作成、右クリック →「[e]」でルール編集。
+- **アップデート「閉じるときに更新」**: いまは使い続けて、**アプリを閉じるタイミングで自動的にインストーラを実行**する選択肢を追加しました（起動時に作業を中断されません）。
+- **iTunes 互換 XML の自動エクスポート**: ツールバーの🕐トグルで ON にすると、変更があったときだけ・約30分間隔＋終了時に Library XML を自動で書き出します。
+
+### English
+
+#### Added
+- **Bulk metadata edit**: selecting multiple tracks and choosing Get Info / Cmd+I opens one editor that applies only the fields you actually touch to every track (shared values are pre-filled; differing ones show "複数の値").
+- **Artwork editing**: the track editor gains a cover-art panel — set the cover on all selected tracks by **pasting from the clipboard** or **choosing an image file**.
+- **Smart playlists**: create playlists whose contents are defined by rules (field / operator / value, match all-or-any, sort, limit) and evaluated live over the whole library, so they stay current. Rules can use **BPM / key (Camelot) / energy / play count / rating** and more. Create from the sidebar's 🎛 button; right-click → "[e]" to edit rules.
+- **"Update on close"**: a new update option that keeps the app running and **launches the installer when you close the window**, so updates don't interrupt you at launch.
+- **Auto-export of the iTunes-compatible XML**: a toolbar toggle (clock icon) re-exports the Library XML only when the library changed — at most every ~30 minutes and once when the app closes.
+
 ## [v0.1.2] - 2026-06-06
 
 ### 日本語
