@@ -10,6 +10,24 @@ Each release is documented in both Japanese and English.
 
 ## [Unreleased]
 
+## [v0.3.2] - 2026-06-07
+
+### 日本語
+
+#### 追加
+- **macOS / Linux 版の配布を開始**しました。リリースに以下を追加します（手動ダウンロード用）。
+  - macOS: **未署名**の `.dmg`（Apple Silicon / Intel の各ネイティブ版）。初回は Gatekeeper の警告が出るため、右クリック→「開く」または `xattr -cr` で回避してください。
+  - Linux: `.AppImage`（単一ファイル）と `.deb`。
+- ※ アプリ内の自動更新は引き続き **Windows 専用**です。macOS / Linux は手動更新になります。また ffmpeg の自動取得も Windows のみで、macOS / Linux は PATH 上の ffmpeg（および CD 取り込み用の cdparanoia / flac / lame）を利用します。
+
+### English
+
+#### Added
+- **macOS / Linux builds are now distributed** (manual download) in releases:
+  - macOS: **unsigned** `.dmg` for Apple Silicon and Intel (native per-arch). On first launch, bypass Gatekeeper via right-click → Open or `xattr -cr`.
+  - Linux: `.AppImage` (single file) and `.deb`.
+- Note: in-app auto-update remains **Windows-only**; macOS / Linux update manually. ffmpeg auto-download is also Windows-only — on macOS / Linux the app uses ffmpeg (and cdparanoia / flac / lame for ripping) from PATH.
+
 ## [v0.3.1] - 2026-06-07
 
 ### 日本語
