@@ -87,6 +87,16 @@ export async function setLibraryRoot(path: string): Promise<void> {
   return invoke("set_library_root", { path });
 }
 
+/// 検索・スマートプレイリストの CJK 字体ゆれ吸収レベルを取得。未設定時は "standard"。
+export async function getSearchFoldLevel(): Promise<string> {
+  return invoke("get_search_fold_level");
+}
+
+/// 検索・スマートプレイリストの CJK 字体ゆれ吸収レベルを設定。受理値: off / light / standard。
+export async function setSearchFoldLevel(level: string): Promise<void> {
+  return invoke("set_search_fold_level", { level });
+}
+
 /// base64 画像データ (クリップボード等) を指定トラックのカバーアートに設定。成功件数を返す。
 export async function setArtworkFromData(
   trackIds: number[],

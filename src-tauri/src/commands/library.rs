@@ -206,6 +206,30 @@ pub fn set_library_root(app: AppHandle, path: String) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// 検索・スマプレの字体ゆれ吸収レベルを取得する。未設定なら "standard"。
+#[tauri::command]
+pub fn get_search_fold_level(app: AppHandle) -> Result<String, String> {
+    let db = get_db(&app)?;
+    Ok(db
+        .get_state("search_fold_level")
+        .map_err(|e| e.to_string())?
+        .unwrap_or_else(|| "standard".to_string()))
+}
+
+/// 検索・スマプレの字体ゆれ吸収レベルを設定する。受理値は off/light/standard。
+/// 不正値は standard に正規化する。
+#[tauri::command]
+pub fn set_search_fold_level(app: AppHandle, level: String) -> Result<(), String> {
+    let v = match level.as_str() {
+        "off" => "off",
+        "light" => "light",
+        _ => "standard",
+    };
+    let db = get_db(&app)?;
+    db.set_state("search_fold_level", v)
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn set_track_rating(app: AppHandle, track_id: i64, rating: i64) -> Result<(), String> {
     let db = get_db(&app)?;

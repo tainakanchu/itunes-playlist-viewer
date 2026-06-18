@@ -6,6 +6,7 @@
 use std::cmp::Ordering;
 
 use crate::models::{SmartCriteria, SmartOp, SmartRule, Track, TrackAnalysis};
+use crate::text_fold::{fold, FoldLevel};
 
 enum FieldVal {
     Str(String),
@@ -57,9 +58,18 @@ fn field_value(t: &Track, a: Option<&TrackAnalysis>, field: &str) -> FieldVal {
     }
 }
 
-fn str_op(s: &str, r: &SmartRule) -> bool {
-    let a = s.to_lowercase();
-    let b = r.value.to_lowercase();
+fn str_op(s: &str, r: &SmartRule, level: FoldLevel) -> bool {
+    // Off でも従来の大小無視は保つため to_lowercase を使う。
+    // Light 以上は fold が小文字化を含むので、全レベルで大小無視は維持される。
+    let normalize = |x: &str| {
+        if level == FoldLevel::Off {
+            x.to_lowercase()
+        } else {
+            fold(x, level)
+        }
+    };
+    let a = normalize(s);
+    let b = normalize(&r.value);
     match r.op {
         SmartOp::Is => a == b,
         SmartOp::IsNot => a != b,
@@ -92,28 +102,34 @@ fn num_op(n: f64, r: &SmartRule) -> bool {
     }
 }
 
-fn rule_matches(t: &Track, a: Option<&TrackAnalysis>, r: &SmartRule) -> bool {
+fn rule_matches(t: &Track, a: Option<&TrackAnalysis>, r: &SmartRule, level: FoldLevel) -> bool {
     let v = field_value(t, a, &r.field);
     match r.op {
         SmartOp::Exists => !matches!(v, FieldVal::None),
         SmartOp::NotExists => matches!(v, FieldVal::None),
         _ => match v {
             FieldVal::None => false,
-            FieldVal::Str(s) => str_op(&s, r),
+            FieldVal::Str(s) => str_op(&s, r, level),
             FieldVal::Num(n) => num_op(n, r),
         },
     }
 }
 
 /// 1 曲が条件に一致するか。ルールが空なら全件一致。
-pub fn track_matches(t: &Track, a: Option<&TrackAnalysis>, c: &SmartCriteria) -> bool {
+/// `level` はテキスト比較の字体ゆれ吸収レベル (Off でも大小無視は維持)。
+pub fn track_matches(
+    t: &Track,
+    a: Option<&TrackAnalysis>,
+    c: &SmartCriteria,
+    level: FoldLevel,
+) -> bool {
     if c.rules.is_empty() {
         return true;
     }
     if c.match_all {
-        c.rules.iter().all(|r| rule_matches(t, a, r))
+        c.rules.iter().all(|r| rule_matches(t, a, r, level))
     } else {
-        c.rules.iter().any(|r| rule_matches(t, a, r))
+        c.rules.iter().any(|r| rule_matches(t, a, r, level))
     }
 }
 
@@ -212,7 +228,7 @@ mod tests {
             sort_by: None,
             sort_desc: false,
         };
-        assert!(track_matches(&t, None, &all));
+        assert!(track_matches(&t, None, &all, FoldLevel::Standard));
 
         let any = SmartCriteria {
             match_all: false,
@@ -225,7 +241,7 @@ mod tests {
             sort_by: None,
             sort_desc: false,
         };
-        assert!(track_matches(&t, None, &any)); // genre matches
+        assert!(track_matches(&t, None, &any, FoldLevel::Standard)); // genre matches
     }
 
     #[test]
@@ -240,7 +256,8 @@ mod tests {
                 limit: None,
                 sort_by: None,
                 sort_desc: false,
-            }
+            },
+            FoldLevel::Standard
         ));
         let t2 = track(2, "X", Some(128), None);
         assert!(!track_matches(
@@ -252,8 +269,42 @@ mod tests {
                 limit: None,
                 sort_by: None,
                 sort_desc: false,
-            }
+            },
+            FoldLevel::Standard
         ));
+    }
+
+    #[test]
+    fn han_variant_matches_standard_only() {
+        // genre="國楽" の曲。Standard では value="国" の Contains が字体ゆれを越えて一致する。
+        let mut t = track(1, "X", Some(120), None);
+        t.genre = Some("國楽".to_string());
+        let crit = SmartCriteria {
+            match_all: true,
+            rules: vec![rule("genre", SmartOp::Contains, "国")],
+            limit: None,
+            sort_by: None,
+            sort_desc: false,
+        };
+        // Standard: 繁体字 "國" が簡体字 "国" に畳まれて一致。
+        assert!(track_matches(&t, None, &crit, FoldLevel::Standard));
+        // Off / Light: 漢字は畳まれないので一致しない (従来挙動)。
+        assert!(!track_matches(&t, None, &crit, FoldLevel::Off));
+        assert!(!track_matches(&t, None, &crit, FoldLevel::Light));
+    }
+
+    #[test]
+    fn off_keeps_case_insensitive() {
+        // Off でも大小無視は維持される (genre="House" に value="HOUSE" が一致)。
+        let t = track(1, "X", Some(120), None);
+        let crit = SmartCriteria {
+            match_all: true,
+            rules: vec![rule("genre", SmartOp::Is, "HOUSE")],
+            limit: None,
+            sort_by: None,
+            sort_desc: false,
+        };
+        assert!(track_matches(&t, None, &crit, FoldLevel::Off));
     }
 
     #[test]

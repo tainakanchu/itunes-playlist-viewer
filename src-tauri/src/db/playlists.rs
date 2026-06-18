@@ -372,9 +372,14 @@ impl Database {
             .map(|a| (a.track_id, a))
             .collect();
 
+        // テキスト比較の字体ゆれ吸収レベル (検索と同じ設定を共有)。
+        let level = crate::text_fold::FoldLevel::from_state(
+            self.get_state("search_fold_level").ok().flatten().as_deref(),
+        );
+
         let mut matched: Vec<Track> = all
             .into_iter()
-            .filter(|t| crate::smart::track_matches(t, amap.get(&t.track_id), &criteria))
+            .filter(|t| crate::smart::track_matches(t, amap.get(&t.track_id), &criteria, level))
             .collect();
 
         // 並び替え: UI のソート優先、無ければ criteria のソート、無ければ name 昇順。
