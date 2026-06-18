@@ -10,6 +10,34 @@ Each release is documented in both Japanese and English.
 
 ## [Unreleased]
 
+## [v0.6.0] - 2026-06-19
+
+### 日本語
+
+#### 追加
+- **CJK 字体ゆれ吸収検索**：繁体字 / 簡体字 / 日本語漢字・かな(ひら↔カタ)・全角半角・英大小を正規化し、どの字体で入力しても横断的にヒットする。強度はユーザー設定（オフ / 軽量 / 標準）。検索ボックス・内蔵 API・スマートプレイリストに適用。(#32)
+- **dj-curator プラグインの強化**：選曲ワークスペースを対話で初期化する `/dj-curator:init-workspace` を追加。選曲ヒアリングを再設計し、非 ASCII（日本語・中国語など）クエリの URL エンコード不具合を修正。(#35)
+
+#### 変更
+- アプリアイコンを Crateforge ダイヤ（dark）に刷新。(#33)
+
+#### その他
+- ライセンスを **MIT** に設定（`LICENSE` 追加・各 manifest に明記）。(#38)
+- CI を見直し：PR / push は軽量チェック（型チェック + テスト）のみとし、フル多 OS ビルドはタグ時に分離。(#37)
+
+### English
+
+#### Added
+- **CJK variant-insensitive search**: folds Traditional / Simplified / Japanese kanji, kana (hiragana↔katakana), full/half-width, and letter case so any variant matches. Configurable strength (off / light / standard). Applies to the search box, the built-in API, and smart playlists. (#32)
+- **dj-curator plugin improvements**: added `/dj-curator:init-workspace` to bootstrap a curation workspace interactively, redesigned the song-selection interview, and fixed URL-encoding of non-ASCII (Japanese / Chinese, etc.) queries. (#35)
+
+#### Changed
+- New app icon (Crateforge diamond, dark). (#33)
+
+#### Misc
+- Licensed under **MIT** (added `LICENSE`, declared in manifests). (#38)
+- CI overhaul: PRs / pushes run lightweight checks (typecheck + tests) only; full multi-OS builds run on tags. (#37)
+
 ## [v0.5.1] - 2026-06-18
 
 ### 日本語

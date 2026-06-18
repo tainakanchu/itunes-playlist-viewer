@@ -46,6 +46,13 @@ git tag --sort=-version:refname | head -5   # Latest tags
 
 3. Run `cargo update -p itunes-playlist-viewer --offline` is NOT needed; `cargo` picks up the new version from `Cargo.toml` automatically. But the lockfile changes — run `nix develop --command bash -c "cd src-tauri && cargo check"` once to update `Cargo.lock` so the lockfile in the repo matches the new version.
 
+4. **dj-curator プラグインが前回タグ以降に変更されていれば、その version も上げる**
+   （アプリ本体とは独立した SemVer。プラグインは marketplace から個別配信されるため、機能追加なら minor、修正なら patch）:
+   - `plugins/dj-curator/.claude-plugin/plugin.json` → `version`
+   - `.claude-plugin/marketplace.json` → 該当 plugin の `version`（plugin.json と一致させる）
+
+   変更有無は `git diff <previous-tag>..HEAD --stat -- plugins .claude-plugin` で確認する。
+
 ## CHANGELOG
 
 If `CHANGELOG.md` does not exist, create it with a "Keep a Changelog" header.
@@ -84,7 +91,7 @@ Keep entries to 1 line each, user-visible language. Drop internal-only commits.
 
 Show the user a summary of:
 - New version
-- Files changed (`package.json`, `Cargo.toml`, `tauri.conf.json`, `Cargo.lock`, `CHANGELOG.md`)
+- Files changed (`package.json`, `Cargo.toml`, `tauri.conf.json`, `Cargo.lock`, `CHANGELOG.md`; plus `plugin.json` / `marketplace.json` if the dj-curator plugin changed)
 - Proposed CHANGELOG section
 - Proposed commit message
 - Proposed tag name
@@ -95,6 +102,8 @@ After approval:
 
 ```
 git add package.json src-tauri/Cargo.toml src-tauri/tauri.conf.json src-tauri/Cargo.lock CHANGELOG.md
+# プラグインを上げた場合は一緒に:
+#   git add plugins/dj-curator/.claude-plugin/plugin.json .claude-plugin/marketplace.json
 git commit -m "chore(release): vX.Y.Z
 
 <paste the CHANGELOG section body here>
