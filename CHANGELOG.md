@@ -10,6 +10,24 @@ Each release is documented in both Japanese and English.
 
 ## [Unreleased]
 
+## [v0.6.1] - 2026-06-19
+
+### 日本語
+
+#### 追加
+- **内蔵 API に曲メタデータの書き込みを追加**：`POST /api/tracks/genre-tags/add` ・ `/remove` でジャンルタグを末尾に増減でき、`PATCH /api/tracks/{id}` で name / artist / album / genre / year / bpm / rating などの任意フィールドを部分更新できます。DB 更新に加えて**実ファイルの ID3 / Vorbis / MP4 タグへ書き戻し**（フォルダ移動はせずタグのみ更新）、書き込み後は GUI に即時反映します。dj-curator プラグインの選曲スキルもこの API に対応しました。(#39)
+
+#### 変更
+- アクセントカラーをアプリアイコンの色 **#6CA1B5** に統一しました。(#42)
+
+### English
+
+#### Added
+- **Metadata writing in the built-in API**: `POST /api/tracks/genre-tags/add` / `/remove` append or remove a genre tag, and `PATCH /api/tracks/{id}` partially updates arbitrary fields (name / artist / album / genre / year / bpm / rating, etc.). Beyond the DB, changes are **written back to the actual file's ID3 / Vorbis / MP4 tags** (tags only, no folder move) and reflected in the GUI immediately. The dj-curator curation skill now uses this API too. (#39)
+
+#### Changed
+- Unified the accent color to the app icon color **#6CA1B5**. (#42)
+
 ## [v0.6.0] - 2026-06-19
 
 ### 日本語
