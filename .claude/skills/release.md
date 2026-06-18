@@ -7,7 +7,14 @@ description: Cut a new release of itunes-playlist-viewer. Use when the user says
 
 ## Goal
 Cut a clean release: write changelog → bump version everywhere → commit → tag → push.
-The GitHub Actions workflow (`build-windows.yml`) will pick the tag up and attach `.exe` / `.msi` / NSIS installer to the GitHub Release.
+The GitHub Actions workflow (`build-windows.yml`) picks the tag up, builds every platform
+(Windows / macOS / Linux) in parallel, and then a dedicated `release` job — which `needs` all
+build jobs — publishes a **single** GitHub Release with all assets attached at once
+(Windows `.exe` / portable zip / `.msi` / NSIS, macOS `.dmg`, Linux `.AppImage` / `.deb`).
+
+The release is created **only after the Windows build succeeds and all builds have finished**,
+so the GitHub Release never appears before the Windows artifacts exist — the in-app updater
+(Windows-only) will never see a version it cannot download.
 
 ## Pre-flight checks
 
@@ -104,7 +111,11 @@ git push origin vX.Y.Z
 
 ## Watch the release build
 
-After the tag push, the `build-windows.yml` workflow will start and, on success, create a GitHub Release with the `.exe` / `.msi` / NSIS installer attached.
+After the tag push, the `build-windows.yml` workflow starts and builds every platform.
+Only once all build jobs finish (and the Windows build succeeded) does the final `release`
+job create the GitHub Release with every platform's assets attached. This means the release
+will not show up immediately — it intentionally waits for the builds so the in-app updater
+never sees a release without the Windows exe / portable zip.
 
 ```
 gh run watch --repo tainakanchu/itunes-playlist-viewer
