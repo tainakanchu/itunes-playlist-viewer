@@ -12,23 +12,23 @@
   --hover: #13171a;
   --bd: #22272b;
   --bd-strong: #2c3338;
-  --ac: #27d2bc;
-  --ac-hi: #34e3cc;
-  --ac-d: #0e6b62;
-  --on-ac: #06211e;
+  --ac: #6ca1b5;
+  --ac-hi: #8bbacb;
+  --ac-d: #325967;
+  --on-ac: #06191f;
   --tx: #e4e7ea;
   --tx-strong: #f2f4f5;
   --tx2: #9da2a8;
   --tx3: #a7adb3;
   --mut: #737a80;
   --warn: #e0a33c;
-  --row-play: rgba(39, 210, 188, 0.09);
-  --row-crate: rgba(39, 210, 188, 0.045);
-  --ac-045: rgba(39, 210, 188, 0.045);
-  --ac-09: rgba(39, 210, 188, 0.09);
-  --ac-13: rgba(39, 210, 188, 0.13);
-  --ac-14: rgba(39, 210, 188, 0.14);
-  --ac-16: rgba(39, 210, 188, 0.16);
+  --row-play: rgba(108, 161, 181, 0.09);
+  --row-crate: rgba(108, 161, 181, 0.045);
+  --ac-045: rgba(108, 161, 181, 0.045);
+  --ac-09: rgba(108, 161, 181, 0.09);
+  --ac-13: rgba(108, 161, 181, 0.13);
+  --ac-14: rgba(108, 161, 181, 0.14);
+  --ac-16: rgba(108, 161, 181, 0.16);
 
   /* Legacy aliases (modals / album view / context menu inherit teal) */
   --bg-primary: var(--bg);
@@ -375,7 +375,7 @@ input {
 }
 .cb-btn.on {
   background: var(--ac-16);
-  border-color: rgba(39, 210, 188, 0.42);
+  border-color: rgba(108, 161, 181, 0.42);
   color: #cffaf4;
 }
 .cb-btn.on svg {
@@ -476,7 +476,7 @@ input {
   padding: 0 9px;
   border-radius: 14px;
   background: var(--ac-16);
-  border: 1px solid rgba(39, 210, 188, 0.4);
+  border: 1px solid rgba(108, 161, 181, 0.4);
   color: #cffaf4;
   font-size: 11.5px;
   font-weight: 600;
@@ -486,7 +486,7 @@ input {
   color: var(--ac);
 }
 .cb-fchip:hover {
-  background: rgba(39, 210, 188, 0.24);
+  background: rgba(108, 161, 181, 0.24);
 }
 .cb-fclear {
   background: none;
@@ -2152,7 +2152,7 @@ input {
 }
 .album-card.open {
   grid-column: 1 / -1;
-  border-color: rgba(39, 210, 188, 0.4);
+  border-color: rgba(108, 161, 181, 0.4);
 }
 .album-card-header {
   display: flex;
@@ -2264,7 +2264,7 @@ input {
   gap: 10px;
   padding: 9px 18px;
   background: var(--ac-09);
-  border-bottom: 1px solid rgba(39, 210, 188, 0.3);
+  border-bottom: 1px solid rgba(108, 161, 181, 0.3);
   color: var(--tx);
   font-size: 12px;
 }
