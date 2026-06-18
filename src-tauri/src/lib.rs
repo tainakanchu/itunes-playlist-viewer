@@ -1,4 +1,5 @@
 mod analyzer;
+mod api;
 mod artwork;
 mod audio;
 mod cd_ripper;
@@ -34,6 +35,8 @@ pub fn run() {
 
     let audio_player = Mutex::new(audio::AudioPlayer::new());
     let smtc_state = Mutex::new(smtc::SmtcState::new());
+    // 内蔵 API サーバーの稼働ハンドル。setup / コマンドから差し替える。
+    let api_server: Mutex<Option<api::ServerControl>> = Mutex::new(None);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -65,6 +68,7 @@ pub fn run() {
         })
         .manage(audio_player)
         .manage(smtc_state)
+        .manage(api_server)
         .setup(|app| {
             // バックグラウンド音声解析ワーカを起動して managed state に載せる。
             app.manage(analyzer::Analyzer::new(app.handle().clone()));
@@ -82,6 +86,15 @@ pub fn run() {
             let handle = app.handle().clone();
             if let Err(e) = smtc::init(&handle) {
                 eprintln!("SMTC init failed (non-fatal): {}", e);
+            }
+
+            // 前回 enabled だった場合のみ内蔵 API サーバーを自動起動する。
+            // bind 失敗 (ポート使用中など) は非致命: 警告だけ出して起動はブロックしない。
+            {
+                let server_state = app.state::<Mutex<Option<api::ServerControl>>>();
+                if let Err(e) = commands::api::start_if_enabled(app.handle(), &server_state) {
+                    eprintln!("API server auto-start failed (non-fatal): {}", e);
+                }
             }
             Ok(())
         })
@@ -168,6 +181,9 @@ pub fn run() {
             commands::updater::download_and_run_update,
             // smtc
             commands::smtc::update_smtc,
+            // 内蔵 API サーバー
+            commands::api::get_api_server_status,
+            commands::api::set_api_server_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
