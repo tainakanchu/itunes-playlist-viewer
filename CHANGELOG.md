@@ -10,6 +10,20 @@ Each release is documented in both Japanese and English.
 
 ## [Unreleased]
 
+## [v0.5.0] - 2026-06-18
+
+### 日本語
+
+#### 追加
+- **AI エージェント連携用のローカル HTTP API サーバーを内蔵**しました。アプリの「設定 → AI 連携 / API」で有効化すると、`127.0.0.1`（既定ポート 8787）でライブラリ・解析データ・プレイリストを読み書きできる REST API を公開します。デフォルトは無効で、ループバックのみで待ち受けます。
+- **DJ 選曲プラグイン `dj-curator`** を追加し、このリポジトリを Claude Code の plugin marketplace 化しました。イベントのフライヤー画像やテーマなどのインプットからコンセプトをヒアリングし、ライブラリから候補を選んで新規プレイリストの「叩き台」と選定根拠レポートを生成します（曲順は GUI で調整）。`/plugin marketplace add tainakanchu/itunes-playlist-viewer` → `/plugin install dj-curator@crateforge` で導入できます。
+
+### English
+
+#### Added
+- **Built-in local HTTP API server for AI agents.** Enable it under Settings → "AI 連携 / API" to expose a REST API on `127.0.0.1` (default port 8787) for reading/writing the library, analysis data, and playlists. Disabled by default; loopback-only.
+- **`dj-curator` DJ curation plugin**, turning this repository into a Claude Code plugin marketplace. From an input (event flyer, theme, reference track) it interviews for the concept, picks candidates from the library, and creates a new playlist "draft" plus a per-track rationale report (ordering is left to the GUI). Install via `/plugin marketplace add tainakanchu/itunes-playlist-viewer` then `/plugin install dj-curator@crateforge`.
+
 ## [v0.4.1] - 2026-06-13
 
 ### 日本語
