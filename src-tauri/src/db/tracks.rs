@@ -309,6 +309,11 @@ impl Database {
         ];
         let order_by = build_order_by(sort_field, sort_order, "", "name COLLATE NOCASE ASC");
 
+        // 検索の字体ゆれ吸収レベル。Off のときは下の分岐で従来と完全に同じ SQL/バインドを使う。
+        let level = crate::text_fold::FoldLevel::from_state(
+            self.get_state("search_fold_level").ok().flatten().as_deref(),
+        );
+
         // 各トークンを AND 結合。bpm:/key:/energy: は track_analysis への絞り込み、
         // それ以外はテキスト 6 列への部分一致 (OR)。バインド値は句の出現順に積む。
         let mut clauses: Vec<String> = Vec::new();
@@ -319,15 +324,28 @@ impl Database {
                 bind.append(&mut binds);
                 continue;
             }
-            let pat = format!("%{}%", tok);
-            let group = COLS
-                .iter()
-                .map(|c| {
-                    bind.push(Value::Text(pat.clone()));
-                    format!("{} LIKE ?", c)
-                })
-                .collect::<Vec<_>>()
-                .join(" OR ");
+            // Off: 従来どおり `col LIKE ?` に生トークンの `%..%` をバインド。
+            // それ以外: 列側を `fold(col, n)` で畳み、パターンも Rust 側で畳んでからバインド。
+            let group = if level == crate::text_fold::FoldLevel::Off {
+                let pat = format!("%{}%", tok);
+                COLS.iter()
+                    .map(|c| {
+                        bind.push(Value::Text(pat.clone()));
+                        format!("{} LIKE ?", c)
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" OR ")
+            } else {
+                let pat = format!("%{}%", crate::text_fold::fold(tok, level));
+                let n = level.as_i64();
+                COLS.iter()
+                    .map(|c| {
+                        bind.push(Value::Text(pat.clone()));
+                        format!("fold({}, {}) LIKE ?", c, n)
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" OR ")
+            };
             clauses.push(format!("({})", group));
         }
         let where_sql = if clauses.is_empty() {

@@ -64,6 +64,8 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
   const [version, setVersion] = useState("");
   const [libraryRoot, setLibraryRoot] = useState<string | null>(null);
   const [showLicenses, setShowLicenses] = useState(false);
+  // CJK 字体ゆれ吸収レベル（off / light / standard）
+  const [foldLevel, setFoldLevel] = useState<string>("standard");
 
   // API サーバー
   const [apiStatus, setApiStatus] = useState<ApiServerStatus | null>(null);
@@ -93,6 +95,7 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
   useEffect(() => {
     getVersion().then(setVersion).catch(() => setVersion(""));
     libraryApi.getLibraryRoot().then(setLibraryRoot).catch(() => setLibraryRoot(null));
+    libraryApi.getSearchFoldLevel().then(setFoldLevel).catch(() => setFoldLevel("standard"));
     refreshFfmpeg();
     // API サーバーの初期状態を取得。
     serverApi.getApiServerStatus().then((s) => {
@@ -175,6 +178,19 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
       }).catch(() => {});
     }
   }, [apiStatus, portInput]);
+
+  // CJK 字体ゆれ吸収レベルの変更。失敗時はアラートを表示して現在値に戻す。
+  const handleChangeFoldLevel = useCallback(async (v: string) => {
+    const prev = foldLevel;
+    setFoldLevel(v);
+    try {
+      await libraryApi.setSearchFoldLevel(v);
+    } catch (err) {
+      alert(`字体ゆれ吸収レベルの設定に失敗しました: ${err}`);
+      // 失敗した場合は最新状態を再取得して戻す。
+      libraryApi.getSearchFoldLevel().then(setFoldLevel).catch(() => setFoldLevel(prev));
+    }
+  }, [foldLevel]);
 
   const handleSetLibraryRoot = useCallback(async () => {
     const dir = await openDir({ directory: true, multiple: false });
@@ -331,6 +347,20 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
                     </button>
                   </div>
                 )}
+
+                <Row
+                  title="字体ゆれ吸収"
+                  desc="検索とスマートプレイリストの字体ゆれ吸収。強いほど広くヒットしますが検索は少し重くなります。"
+                >
+                  <select
+                    value={foldLevel}
+                    onChange={(e) => handleChangeFoldLevel(e.target.value)}
+                  >
+                    <option value="standard">標準（かな・全半角・大小＋漢字字体 繁/簡/日）</option>
+                    <option value="light">軽量（かな・全半角・大小のみ）</option>
+                    <option value="off">オフ（完全一致・最速）</option>
+                  </select>
+                </Row>
               </>
             )}
 

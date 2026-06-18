@@ -15,6 +15,7 @@ mod organizer;
 mod playlist_rules;
 mod smart;
 mod smtc;
+mod text_fold;
 mod updater;
 
 use std::sync::Mutex;
@@ -114,6 +115,8 @@ pub fn run() {
             commands::library::get_all_genre_tags,
             commands::library::get_library_root,
             commands::library::set_library_root,
+            commands::library::get_search_fold_level,
+            commands::library::set_search_fold_level,
             // artwork
             commands::artwork::set_artwork_from_data,
             commands::artwork::set_artwork_from_file,

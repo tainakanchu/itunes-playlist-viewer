@@ -6,6 +6,7 @@ pub mod tracks;
 
 use std::path::Path;
 
+use rusqlite::functions::FunctionFlags;
 use rusqlite::{Connection, Result};
 
 pub struct Database {
@@ -29,10 +30,30 @@ impl Database {
             conn,
             path: path_str,
         };
+        register_functions(&db.conn)?;
         schema::create_tables(&db.conn)?;
         migrate(&db.conn)?;
         Ok(db)
     }
+}
+
+/// SQL から呼べるアプリ定義スカラー関数を登録する。`open` / `open_memory` の両方で使う。
+/// `fold(text, level)`: CJK 字体ゆれを `level` (0=Off/1=Light/2=Standard) まで畳む。
+/// NULL 列は NULL のまま返す。決定的なので SQLITE_DETERMINISTIC を付ける。
+fn register_functions(conn: &Connection) -> Result<()> {
+    conn.create_scalar_function(
+        "fold",
+        2,
+        FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_DETERMINISTIC,
+        |ctx| {
+            let text: Option<String> = ctx.get(0)?;
+            let level: i64 = ctx.get(1)?;
+            Ok(text.map(|t| {
+                crate::text_fold::fold(&t, crate::text_fold::FoldLevel::from_i64(level))
+            }))
+        },
+    )?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -44,6 +65,7 @@ impl Database {
             conn,
             path: ":memory:".to_string(),
         };
+        register_functions(&db.conn)?;
         schema::create_tables(&db.conn)?;
         migrate(&db.conn)?;
         Ok(db)
