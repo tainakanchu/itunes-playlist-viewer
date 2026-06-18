@@ -9,16 +9,19 @@ import * as systemApi from "../api/system";
 import * as ffmpegApi from "../api/ffmpeg";
 import type { FfmpegStatus } from "../api/ffmpeg";
 import type { UpdateInfo } from "../api/system";
+import * as serverApi from "../api/server";
+import type { ApiServerStatus } from "../api/server";
 import { Icon } from "./Icon";
 import { LicenseList } from "./LicenseList";
 
 const REPO_URL = "https://github.com/tainakanchu/itunes-playlist-viewer";
 
-type Section = "general" | "ffmpeg" | "updates" | "about";
+type Section = "general" | "ffmpeg" | "api" | "updates" | "about";
 
 const SECTIONS: { key: Section; label: string; icon: string }[] = [
   { key: "general", label: "一般", icon: "sliders" },
   { key: "ffmpeg", label: "変換 (ffmpeg)", icon: "waveform" },
+  { key: "api", label: "AI 連携 / API", icon: "info" },
   { key: "updates", label: "アップデート", icon: "download" },
   { key: "about", label: "情報・ライセンス", icon: "info" },
 ];
@@ -62,6 +65,11 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
   const [libraryRoot, setLibraryRoot] = useState<string | null>(null);
   const [showLicenses, setShowLicenses] = useState(false);
 
+  // API サーバー
+  const [apiStatus, setApiStatus] = useState<ApiServerStatus | null>(null);
+  // ポート入力の一時 state（フォーカス中の未確定値）
+  const [portInput, setPortInput] = useState<string>("8787");
+
   // ffmpeg
   const [ffStatus, setFfStatus] = useState<FfmpegStatus | null>(null);
   const [ffBusy, setFfBusy] = useState(false);
@@ -86,6 +94,11 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
     getVersion().then(setVersion).catch(() => setVersion(""));
     libraryApi.getLibraryRoot().then(setLibraryRoot).catch(() => setLibraryRoot(null));
     refreshFfmpeg();
+    // API サーバーの初期状態を取得。
+    serverApi.getApiServerStatus().then((s) => {
+      setApiStatus(s);
+      setPortInput(String(s.port));
+    }).catch(() => {});
   }, [refreshFfmpeg]);
 
   // ffmpeg 取得の進捗購読。
@@ -117,6 +130,51 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  // API サーバーの有効化トグル。
+  const handleToggleApiServer = useCallback(async () => {
+    if (!apiStatus) return;
+    const nextEnabled = !apiStatus.enabled;
+    const port = Number(portInput) || apiStatus.port;
+    try {
+      const next = await serverApi.setApiServerConfig(nextEnabled, port);
+      setApiStatus(next);
+      setPortInput(String(next.port));
+    } catch (err) {
+      alert(`API サーバーの設定に失敗しました: ${err}`);
+      // 失敗した場合は最新状態を再取得してトグルをリセット。
+      serverApi.getApiServerStatus().then((s) => {
+        setApiStatus(s);
+        setPortInput(String(s.port));
+      }).catch(() => {});
+    }
+  }, [apiStatus, portInput]);
+
+  // ポート番号の変更を適用（enabled=true のときのみ即時反映）。
+  const handleApplyPort = useCallback(async () => {
+    if (!apiStatus) return;
+    const port = Number(portInput);
+    if (!port || port < 1 || port > 65535) {
+      alert(`ポート番号が不正です: ${portInput}`);
+      setPortInput(String(apiStatus.port));
+      return;
+    }
+    if (!apiStatus.enabled) {
+      // 無効状態のときはローカル state だけ更新。
+      return;
+    }
+    try {
+      const next = await serverApi.setApiServerConfig(true, port);
+      setApiStatus(next);
+      setPortInput(String(next.port));
+    } catch (err) {
+      alert(`ポートの変更に失敗しました: ${err}`);
+      serverApi.getApiServerStatus().then((s) => {
+        setApiStatus(s);
+        setPortInput(String(s.port));
+      }).catch(() => {});
+    }
+  }, [apiStatus, portInput]);
 
   const handleSetLibraryRoot = useCallback(async () => {
     const dir = await openDir({ directory: true, multiple: false });
@@ -342,6 +400,66 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
                   </button>
                   {ffProgress && <span className="settings-progress">{ffProgress}</span>}
                 </div>
+              </>
+            )}
+
+            {section === "api" && (
+              <>
+                <div className="settings-note">
+                  <Icon name="info" size={14} />
+                  <span>
+                    ループバック（127.0.0.1）のみで待受するローカル HTTP API サーバーです。
+                    デフォルトは <b>無効</b> です。AI エージェントや外部ツールとの連携に使います。
+                  </span>
+                </div>
+
+                <Row
+                  title="API サーバーを有効化"
+                  desc="有効にすると 127.0.0.1:ポート番号 で REST API を公開します。"
+                >
+                  <Toggle
+                    on={apiStatus?.enabled ?? false}
+                    onClick={handleToggleApiServer}
+                  />
+                </Row>
+
+                <Row
+                  title="ポート番号"
+                  desc="待受ポート（1〜65535）。有効中に変更すると即時再起動します。"
+                >
+                  <div className="settings-pathrow">
+                    <input
+                      type="number"
+                      min={1}
+                      max={65535}
+                      value={portInput}
+                      onChange={(e) => setPortInput(e.target.value)}
+                      onBlur={handleApplyPort}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.currentTarget.blur();
+                        }
+                      }}
+                      style={{ width: 80, textAlign: "right" }}
+                    />
+                  </div>
+                </Row>
+
+                {apiStatus?.running && apiStatus.url && (
+                  <div className="settings-note">
+                    <Icon name="check" size={14} />
+                    <span>
+                      稼働中: <code>{apiStatus.url}</code>
+                    </span>
+                  </div>
+                )}
+
+                {apiStatus?.enabled && !apiStatus.running && (
+                  <div className="settings-note">
+                    <Icon name="warning" size={14} />
+                    <span>有効ですが起動に失敗しています（ポートが使用中の可能性があります）。</span>
+                  </div>
+                )}
               </>
             )}
 
