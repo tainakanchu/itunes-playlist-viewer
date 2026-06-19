@@ -296,4 +296,7 @@ jobs:
           files: release-assets/**/*
           fail_on_unmatched_files: false
           draft: false
-          prerelease: false
+          # タグに `-` (例 v0.7.0-alpha.1) を含むプレリリースは GitHub の prerelease として
+          # 公開する。アプリ内アップデータは /releases/latest を見る＝prerelease を拾わないので
+          # 一般ユーザーには配られず、Releases ページから手動で取得してテストできる。
+          prerelease: ${{ contains(github.ref_name, '-') }}

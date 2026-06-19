@@ -1,0 +1,1481 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Crateforge Web Player</title>
+  <!-- PWA meta tags -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Crateforge">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta name="theme-color" content="#6CA1B5">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent: #6CA1B5;
+      --accent-dim: #4a7a90;
+      --bg: #141618;
+      --bg2: #1e2124;
+      --bg3: #272b2f;
+      --bg4: #2e333a;
+      --text: #e8eaed;
+      --text-dim: #8a9099;
+      --text-muted: #555c66;
+      --danger: #e57373;
+      --success: #81c784;
+      --bar-h: 76px;
+      --side-w: 220px;
+      --tab-h: 52px;
+    }
+
+    html, body { height: 100%; overflow: hidden; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    #header {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--bg4);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+
+    #app-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--accent);
+      white-space: nowrap;
+      letter-spacing: 0.04em;
+    }
+
+    #search-box {
+      flex: 1;
+      background: var(--bg3);
+      border: 1px solid var(--bg4);
+      border-radius: 6px;
+      padding: 7px 10px;
+      color: var(--text);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    #search-box:focus { border-color: var(--accent); }
+    #search-box::placeholder { color: var(--text-muted); }
+
+    #mode-toggle {
+      background: var(--bg3);
+      border: 1px solid var(--bg4);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 12px;
+      padding: 7px 10px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s, border-color 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    #mode-toggle:hover { background: var(--bg4); border-color: var(--accent); }
+    #mode-toggle.remote { border-color: var(--accent); color: var(--accent); }
+    #mode-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      display: inline-block;
+      transition: background 0.15s;
+    }
+    #mode-toggle.remote #mode-dot { background: var(--accent); }
+
+    /* ── Body layout ── */
+    #body-wrap {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      width: var(--side-w);
+      background: var(--bg2);
+      border-right: 1px solid var(--bg4);
+      overflow-y: auto;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #sidebar-header {
+      padding: 10px 12px 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .playlist-item {
+      padding: 9px 14px;
+      cursor: pointer;
+      border-left: 3px solid transparent;
+      transition: background 0.1s, border-color 0.1s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 40px;
+    }
+    .playlist-item:hover { background: var(--bg3); }
+    .playlist-item.active {
+      background: var(--bg3);
+      border-left-color: var(--accent);
+      color: var(--accent);
+    }
+    .playlist-item.folder {
+      color: var(--text-dim);
+      font-size: 12px;
+      padding-top: 6px;
+      padding-bottom: 2px;
+      cursor: default;
+      font-weight: 600;
+      border-left-color: transparent !important;
+      background: transparent !important;
+    }
+    .playlist-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .playlist-count { font-size: 11px; color: var(--text-muted); }
+
+    /* ── Main ── */
+    #main {
+      flex: 1;
+      overflow-y: auto;
+      padding-bottom: calc(var(--bar-h) + 4px);
+    }
+
+    #track-list-header {
+      padding: 8px 14px 6px;
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      border-bottom: 1px solid var(--bg4);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 5;
+    }
+    #track-list-title { flex: 1; }
+    #track-count { font-size: 11px; color: var(--text-muted); }
+
+    #track-list { list-style: none; }
+
+    .track-row {
+      display: flex;
+      align-items: center;
+      padding: 9px 14px;
+      gap: 10px;
+      cursor: pointer;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+      transition: background 0.1s;
+      min-height: 52px;
+    }
+    .track-row:hover { background: var(--bg2); }
+    .track-row.active { background: var(--bg3); }
+    .track-row.unavailable { opacity: 0.4; cursor: not-allowed; }
+
+    .track-idx {
+      width: 26px;
+      text-align: right;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      flex-shrink: 0;
+    }
+    .track-row.active .track-idx { display: none; }
+    .playing-icon {
+      display: none;
+      width: 26px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .track-row.active .playing-icon { display: block; }
+    .playing-icon svg { animation: eq-anim 1.2s ease-in-out infinite; }
+    @keyframes eq-anim {
+      0%, 100% { transform: scaleY(1); }
+      50% { transform: scaleY(0.5); }
+    }
+    .track-row.paused .playing-icon svg { animation: none; }
+
+    .track-info { flex: 1; min-width: 0; }
+    .track-name {
+      font-size: 14px;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .track-row.active .track-name { color: var(--accent); }
+    .track-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-top: 2px;
+    }
+    .track-duration {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      flex-shrink: 0;
+    }
+
+    /* ── Similar button ── */
+    .track-sim-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 4px 6px;
+      border-radius: 4px;
+      flex-shrink: 0;
+      opacity: 0;
+      transition: opacity 0.15s, color 0.15s;
+    }
+    .track-row:hover .track-sim-btn { opacity: 1; }
+    .track-sim-btn:hover { color: var(--accent); }
+
+    /* Always show on mobile */
+    @media (max-width: 600px) {
+      .track-sim-btn { opacity: 0.5; }
+    }
+
+    #empty-msg {
+      padding: 48px 20px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 15px;
+    }
+
+    /* ── Player bar ── */
+    #player-bar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: var(--bar-h);
+      background: var(--bg2);
+      border-top: 1px solid var(--bg4);
+      display: flex;
+      flex-direction: column;
+      padding: 6px 14px 8px;
+      z-index: 20;
+    }
+
+    #progress-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    #time-cur, #time-tot {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      width: 36px;
+    }
+    #time-tot { text-align: right; }
+
+    #seek-slider {
+      flex: 1;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--bg4);
+      outline: none;
+      cursor: pointer;
+      transition: height 0.15s;
+    }
+    #seek-slider:hover { height: 6px; }
+    #seek-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      box-shadow: 0 0 4px rgba(0,0,0,0.4);
+    }
+    #seek-slider::-moz-range-thumb {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      border: none;
+    }
+
+    #controls-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #now-playing {
+      flex: 1;
+      min-width: 0;
+    }
+    #now-name {
+      font-size: 13px;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #now-artist {
+      font-size: 11px;
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .ctrl-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text);
+      padding: 6px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, color 0.15s;
+      flex-shrink: 0;
+    }
+    .ctrl-btn:hover { background: var(--bg3); color: var(--accent); }
+    .ctrl-btn:active { background: var(--bg4); }
+    .ctrl-btn svg { display: block; }
+
+    #play-pause-btn {
+      background: var(--accent);
+      color: #fff;
+      width: 36px; height: 36px;
+      border-radius: 50%;
+    }
+    #play-pause-btn:hover { background: var(--accent-dim); color: #fff; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: calc(var(--bar-h) + 12px);
+      left: 50%;
+      transform: translateX(-50%) translateY(10px);
+      background: var(--bg3);
+      border: 1px solid var(--bg4);
+      border-radius: 8px;
+      padding: 10px 18px;
+      font-size: 13px;
+      color: var(--text);
+      opacity: 0;
+      transition: opacity 0.2s, transform 0.2s;
+      pointer-events: none;
+      z-index: 100;
+      max-width: 340px;
+      text-align: center;
+    }
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    #toast.error { border-color: var(--danger); color: var(--danger); }
+
+    /* ── Loading ── */
+    .loading-row {
+      padding: 32px;
+      text-align: center;
+      color: var(--text-muted);
+    }
+
+    /* ── Tab bar ── */
+    #tab-bar {
+      position: fixed;
+      bottom: var(--bar-h);
+      left: 0; right: 0;
+      height: var(--tab-h);
+      background: var(--bg2);
+      border-top: 1px solid var(--bg4);
+      display: flex;
+      z-index: 15;
+    }
+
+    .tab-btn {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 10px;
+      cursor: pointer;
+      padding: 6px 4px;
+      transition: color 0.15s;
+    }
+    .tab-btn.active { color: var(--accent); }
+    .tab-btn svg { display: block; }
+
+    /* On desktop (wide), hide the tab bar — sidebar handles navigation */
+    @media (min-width: 601px) {
+      #tab-bar { display: none; }
+    }
+
+    /* On mobile, adjust bottom padding for both player bar + tab bar */
+    @media (max-width: 600px) {
+      #main { padding-bottom: calc(var(--bar-h) + var(--tab-h) + 4px); }
+      /* Toast above tab bar */
+      #toast { bottom: calc(var(--bar-h) + var(--tab-h) + 12px); }
+    }
+
+    /* ── Panel header ── */
+    .panel-header {
+      padding: 10px 14px 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      border-bottom: 1px solid var(--bg4);
+    }
+
+    /* ── Queue panel ── */
+    #queue-panel {
+      position: fixed;
+      bottom: calc(var(--bar-h) + var(--tab-h, 0px));
+      left: 0; right: 0;
+      max-height: 50vh;
+      background: var(--bg2);
+      border-top: 1px solid var(--bg4);
+      overflow-y: auto;
+      z-index: 18;
+      display: none;
+      flex-direction: column;
+    }
+    #queue-panel.open { display: flex; }
+    #queue-panel-header {
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--bg4);
+      flex-shrink: 0;
+    }
+    #queue-list { list-style: none; }
+    .queue-row {
+      padding: 8px 14px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+      font-size: 13px;
+    }
+    .queue-row.current { color: var(--accent); }
+
+    @media (max-width: 600px) {
+      #queue-panel { bottom: calc(var(--bar-h) + var(--tab-h)); }
+    }
+
+    /* ── Mobile: collapse sidebar ── */
+    @media (max-width: 600px) {
+      #sidebar {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; bottom: 0;
+        z-index: 50;
+        width: 240px;
+        box-shadow: 4px 0 24px rgba(0,0,0,0.6);
+      }
+      #sidebar.open { display: flex; }
+
+      #sidebar-toggle {
+        display: flex;
+      }
+    }
+
+    #sidebar-toggle {
+      display: none;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-dim);
+      padding: 4px;
+      align-items: center;
+    }
+    #sidebar-toggle:hover { color: var(--accent); }
+
+    #sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 49;
+    }
+    #sidebar-overlay.open { display: block; }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<div id="header">
+  <button id="sidebar-toggle" aria-label="プレイリスト">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+    </svg>
+  </button>
+  <div id="app-title">Crateforge</div>
+  <input id="search-box" type="search" placeholder="曲を検索..." autocomplete="off" />
+  <button id="mode-toggle" aria-label="再生モード切替">
+    <span id="mode-dot"></span>
+    <span id="mode-label">この端末</span>
+  </button>
+</div>
+
+<!-- Body -->
+<div id="body-wrap">
+  <div id="sidebar-overlay"></div>
+
+  <!-- Sidebar -->
+  <nav id="sidebar" aria-label="プレイリスト">
+    <div id="sidebar-header">プレイリスト</div>
+    <ul id="playlist-list"></ul>
+    <div id="sidebar-genre-header" style="padding:10px 12px 6px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-top:8px;">ジャンル</div>
+    <ul id="sidebar-genre-list"></ul>
+  </nav>
+
+  <!-- Main -->
+  <main id="main" role="main">
+    <div id="track-list-header">
+      <span id="track-list-title">すべての曲</span>
+      <span id="track-count"></span>
+    </div>
+    <ul id="track-list"></ul>
+    <div id="empty-msg" style="display:none">曲が見つかりません</div>
+  </main>
+
+  <!-- Mobile playlist panel (tab view) -->
+  <div id="mobile-playlist-panel" style="display:none; flex:1; overflow-y:auto; padding-bottom: calc(var(--bar-h) + var(--tab-h) + 4px);">
+    <div class="panel-header">プレイリスト</div>
+    <ul id="mobile-playlist-list"></ul>
+  </div>
+
+  <!-- Mobile genre panel (tab view) -->
+  <div id="mobile-genre-panel" style="display:none; flex:1; overflow-y:auto; padding-bottom: calc(var(--bar-h) + var(--tab-h) + 4px);">
+    <div class="panel-header">ジャンル</div>
+    <div id="filter-row" style="padding:8px 14px; display:flex; gap:8px; flex-wrap:wrap; border-bottom:1px solid var(--bg4);">
+      <input type="number" id="year-from" placeholder="年代(from)" min="1900" max="2099" style="width:110px;background:var(--bg3);border:1px solid var(--bg4);border-radius:6px;padding:6px 8px;color:var(--text);font-size:13px;">
+      <input type="number" id="year-to" placeholder="年代(to)" min="1900" max="2099" style="width:110px;background:var(--bg3);border:1px solid var(--bg4);border-radius:6px;padding:6px 8px;color:var(--text);font-size:13px;">
+      <select id="rating-min" style="background:var(--bg3);border:1px solid var(--bg4);border-radius:6px;padding:6px 8px;color:var(--text);font-size:13px;">
+        <option value="">評価(all)</option>
+        <option value="20">★</option>
+        <option value="40">★★</option>
+        <option value="60">★★★</option>
+        <option value="80">★★★★</option>
+        <option value="100">★★★★★</option>
+      </select>
+      <button id="filter-apply-btn" style="background:var(--accent);border:none;border-radius:6px;padding:6px 12px;color:#fff;font-size:13px;cursor:pointer;">適用</button>
+    </div>
+    <ul id="genre-list"></ul>
+  </div>
+</div>
+
+<!-- Bottom tab bar (mobile primary nav) -->
+<div id="tab-bar">
+  <button class="tab-btn active" data-tab="tracks" aria-label="曲">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>
+    <span>曲</span>
+  </button>
+  <button class="tab-btn" data-tab="playlists" aria-label="プレイリスト">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h12v2H3zm0 4h12v2H3zm0 4h7v2H3zm14-4v8l6-4z"/></svg>
+    <span>プレイリスト</span>
+  </button>
+  <button class="tab-btn" data-tab="genres" aria-label="ジャンル">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+    <span>ジャンル</span>
+  </button>
+</div>
+
+<!-- Player bar -->
+<div id="player-bar" role="region" aria-label="再生コントロール">
+  <div id="progress-wrap">
+    <span id="time-cur">0:00</span>
+    <input id="seek-slider" type="range" min="0" max="1000" value="0" step="1" aria-label="シーク" />
+    <span id="time-tot">0:00</span>
+  </div>
+  <div id="controls-row">
+    <img id="now-artwork" src="" alt="" style="width:44px;height:44px;border-radius:4px;object-fit:cover;flex-shrink:0;display:none;" onerror="this.style.display='none'">
+    <div id="now-playing">
+      <div id="now-name" style="color:var(--text-muted)">—</div>
+      <div id="now-artist"></div>
+    </div>
+    <button class="ctrl-btn" id="queue-btn" aria-label="Up Next" title="Up Next">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
+    </button>
+    <button class="ctrl-btn" id="prev-btn" aria-label="前の曲">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/>
+      </svg>
+    </button>
+    <button class="ctrl-btn" id="play-pause-btn" aria-label="再生/一時停止">
+      <svg id="pp-icon-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M8 5v14l11-7z"/>
+      </svg>
+      <svg id="pp-icon-pause" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="display:none">
+        <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+      </svg>
+    </button>
+    <button class="ctrl-btn" id="next-btn" aria-label="次の曲">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M6 18l8.5-6L6 6v12zm2-8.14L11.03 12 8 14.14V9.86zM16 6h2v12h-2z"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<!-- Audio element (local mode) -->
+<audio id="audio" preload="none"></audio>
+
+<!-- Toast -->
+<div id="toast" role="alert" aria-live="polite"></div>
+
+<!-- Up Next queue panel -->
+<div id="queue-panel" aria-label="Up Next">
+  <div id="queue-panel-header">
+    <span>Up Next</span>
+    <button id="queue-close-btn" class="ctrl-btn" aria-label="閉じる">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+    </button>
+  </div>
+  <ul id="queue-list"></ul>
+</div>
+
+<!-- Similar tracks modal -->
+<div id="similar-modal" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.7);overflow-y:auto;">
+  <div style="max-width:480px;margin:40px auto;background:var(--bg2);border-radius:12px;overflow:hidden;">
+    <div style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--bg4);">
+      <span id="similar-title" style="font-size:15px;font-weight:600">似た曲</span>
+      <button id="similar-close" class="ctrl-btn" aria-label="閉じる">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+    </div>
+    <ul id="similar-list" style="list-style:none;"></ul>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ── Token (localStorage persistence for PWA) ── */
+  let token = new URLSearchParams(location.search).get("token");
+  if (token) {
+    localStorage.setItem("cf_token", token);
+  } else {
+    token = localStorage.getItem("cf_token") || "";
+  }
+
+  function api(path) {
+    if (!token) return path;
+    return path + (path.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(token);
+  }
+
+  async function apiFetch(path, opts) {
+    const res = await fetch(api(path), opts);
+    if (res.status === 401 || res.status === 403) {
+      showToast("トークンが無効です。設定でトークンを確認してください。", "error", 6000);
+      throw new Error("auth:" + res.status);
+    }
+    return res;
+  }
+
+  /* ── Toast ── */
+  let toastTimer = null;
+  function showToast(msg, type, duration) {
+    const el = document.getElementById("toast");
+    el.textContent = msg;
+    el.className = "show" + (type === "error" ? " error" : "");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.className = ""; }, duration || 3000);
+  }
+
+  /* ── Helpers ── */
+  function fmtTime(ms) {
+    if (!ms || isNaN(ms)) return "0:00";
+    const s = Math.floor(ms / 1000);
+    const m = Math.floor(s / 60);
+    return m + ":" + String(s % 60).padStart(2, "0");
+  }
+
+  function esc(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  /* ── State ── */
+  let remoteMode = false;
+  let tracks = [];
+  let currentTrackId = null;
+  let currentQueue = [];
+  let currentQueueIdx = -1;
+  let isPlaying = false;
+  let isSeeking = false;
+  let remotePoller = null;
+  let activePlaylistId = null; // null = all tracks
+
+  /* ── DOM refs ── */
+  const audio        = document.getElementById("audio");
+  const modeToggle   = document.getElementById("mode-toggle");
+  const modeLabel    = document.getElementById("mode-label");
+  const searchBox    = document.getElementById("search-box");
+  const playlistList = document.getElementById("playlist-list");
+  const trackList    = document.getElementById("track-list");
+  const emptyMsg     = document.getElementById("empty-msg");
+  const trackListTitle = document.getElementById("track-list-title");
+  const trackCount   = document.getElementById("track-count");
+  const nowName      = document.getElementById("now-name");
+  const nowArtist    = document.getElementById("now-artist");
+  const timeCur      = document.getElementById("time-cur");
+  const timeTot      = document.getElementById("time-tot");
+  const seekSlider   = document.getElementById("seek-slider");
+  const prevBtn      = document.getElementById("prev-btn");
+  const nextBtn      = document.getElementById("next-btn");
+  const playPauseBtn = document.getElementById("play-pause-btn");
+  const ppIconPlay   = document.getElementById("pp-icon-play");
+  const ppIconPause  = document.getElementById("pp-icon-pause");
+  const sidebarToggle  = document.getElementById("sidebar-toggle");
+  const sidebar        = document.getElementById("sidebar");
+  const sidebarOverlay = document.getElementById("sidebar-overlay");
+
+  /* ── Mode toggle ── */
+  modeToggle.addEventListener("click", function () {
+    remoteMode = !remoteMode;
+    modeLabel.textContent = remoteMode ? "PC で再生" : "この端末";
+    modeToggle.classList.toggle("remote", remoteMode);
+    if (remoteMode) {
+      audio.pause();
+      startRemotePoller();
+    } else {
+      stopRemotePoller();
+    }
+  });
+
+  /* ── Mobile sidebar ── */
+  sidebarToggle.addEventListener("click", function () {
+    sidebar.classList.add("open");
+    sidebarOverlay.classList.add("open");
+  });
+  sidebarOverlay.addEventListener("click", function () {
+    sidebar.classList.remove("open");
+    sidebarOverlay.classList.remove("open");
+  });
+
+  /* ── Tab bar ── */
+  function switchTab(tabName) {
+    var isMobile = window.innerWidth <= 600;
+    document.querySelectorAll(".tab-btn").forEach(function (btn) {
+      btn.classList.toggle("active", btn.dataset.tab === tabName);
+    });
+
+    if (!isMobile) return; // On desktop, tabs don't control visibility
+
+    var mainEl = document.getElementById("main");
+    var ppanel = document.getElementById("mobile-playlist-panel");
+    var gpanel = document.getElementById("mobile-genre-panel");
+
+    if (tabName === "tracks") {
+      mainEl.style.display = "";
+      if (ppanel) ppanel.style.display = "none";
+      if (gpanel) gpanel.style.display = "none";
+    } else if (tabName === "playlists") {
+      mainEl.style.display = "none";
+      if (ppanel) ppanel.style.display = "";
+      if (gpanel) gpanel.style.display = "none";
+    } else if (tabName === "genres") {
+      mainEl.style.display = "none";
+      if (ppanel) ppanel.style.display = "none";
+      if (gpanel) gpanel.style.display = "";
+    }
+  }
+
+  document.querySelectorAll(".tab-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      switchTab(btn.dataset.tab);
+    });
+  });
+
+  /* ── Playlist load ── */
+  async function loadPlaylists() {
+    try {
+      const res = await apiFetch("/api/playlists");
+      if (!res.ok) return;
+      const list = await res.json();
+      renderPlaylists(list);
+    } catch (e) {
+      if (!String(e).startsWith("Error: auth:")) {
+        showToast("プレイリストの読み込みに失敗しました", "error");
+      }
+    }
+  }
+
+  function renderPlaylists(list) {
+    playlistList.innerHTML = "";
+    var mobilePL = document.getElementById("mobile-playlist-list");
+    if (mobilePL) mobilePL.innerHTML = "";
+
+    // Helper to make "すべての曲" item
+    function makeAllItem(forMobile) {
+      const allItem = document.createElement("li");
+      allItem.className = "playlist-item active";
+      allItem.dataset.id = "";
+      allItem.innerHTML = '<span class="playlist-name">すべての曲</span>';
+      allItem.addEventListener("click", function () {
+        selectPlaylist(null, "すべての曲", allItem);
+        if (forMobile) switchTab("tracks");
+      });
+      return allItem;
+    }
+
+    playlistList.appendChild(makeAllItem(false));
+    if (mobilePL) mobilePL.appendChild(makeAllItem(true));
+
+    list.forEach(function (pl) {
+      function makeItem(forMobile) {
+        const li = document.createElement("li");
+        li.className = "playlist-item" + (pl.isFolder ? " folder" : "");
+        li.dataset.id = pl.playlistId;
+        const cnt = pl.isFolder ? "" :
+          '<span class="playlist-count">' + (pl.trackCount || "") + '</span>';
+        li.innerHTML = '<span class="playlist-name">' + esc(pl.name) + '</span>' + cnt;
+        if (!pl.isFolder) {
+          li.addEventListener("click", function () {
+            selectPlaylist(pl.playlistId, pl.name, li);
+            if (forMobile) switchTab("tracks");
+          });
+        }
+        return li;
+      }
+      playlistList.appendChild(makeItem(false));
+      if (mobilePL) mobilePL.appendChild(makeItem(true));
+    });
+  }
+
+  function selectPlaylist(id, name, el) {
+    activePlaylistId = id;
+    document.querySelectorAll(".playlist-item").forEach(function (item) {
+      item.classList.remove("active");
+    });
+    el.classList.add("active");
+    trackListTitle.textContent = name;
+    searchBox.value = "";
+    closeSidebarMobile();
+    loadTracksForPlaylist(id);
+  }
+
+  function closeSidebarMobile() {
+    sidebar.classList.remove("open");
+    sidebarOverlay.classList.remove("open");
+  }
+
+  /* ── Genre load ── */
+  async function loadGenres() {
+    try {
+      const res = await apiFetch("/api/genres");
+      if (!res.ok) return;
+      const genres = await res.json();
+      renderGenres(genres);
+    } catch (e) { /* silent */ }
+  }
+
+  function renderGenres(genres) {
+    function mkItem(g) {
+      const li = document.createElement("li");
+      li.className = "playlist-item";
+      li.innerHTML = '<span class="playlist-name">' + esc(g.tag) + '</span><span class="playlist-count">' + (g.count || "") + '</span>';
+      li.addEventListener("click", function () {
+        selectGenre(g.tag);
+      });
+      return li;
+    }
+
+    const gList = document.getElementById("genre-list");
+    const sidebarGList = document.getElementById("sidebar-genre-list");
+    if (gList) { gList.innerHTML = ""; genres.forEach(function (g) { gList.appendChild(mkItem(g)); }); }
+    if (sidebarGList) { sidebarGList.innerHTML = ""; genres.forEach(function (g) { sidebarGList.appendChild(mkItem(g)); }); }
+  }
+
+  function selectGenre(tag) {
+    let url = "/api/tracks?genre=" + encodeURIComponent(tag) + "&limit=500";
+    const yf = document.getElementById("year-from");
+    const yt = document.getElementById("year-to");
+    const rm = document.getElementById("rating-min");
+    if (yf && yf.value) url += "&yearFrom=" + yf.value;
+    if (yt && yt.value) url += "&yearTo=" + yt.value;
+    if (rm && rm.value) url += "&ratingMin=" + rm.value;
+
+    trackListTitle.textContent = "ジャンル: " + tag;
+    activePlaylistId = null;
+    switchTab("tracks");
+    loadTracksWithUrl(url);
+  }
+
+  async function loadTracksWithUrl(url) {
+    showLoading();
+    try {
+      const res = await apiFetch(url);
+      if (!res.ok) { showToast("曲の読み込みに失敗しました", "error"); return; }
+      tracks = await res.json();
+      currentQueue = tracks.map(function (t) { return t.trackId; });
+      renderTracks(tracks);
+    } catch (e) {
+      if (!String(e).startsWith("Error: auth:")) showToast("曲の読み込みに失敗しました", "error");
+    }
+  }
+
+  // Filter apply button
+  var filterApplyBtn = document.getElementById("filter-apply-btn");
+  if (filterApplyBtn) {
+    filterApplyBtn.addEventListener("click", function () {
+      let url = "/api/tracks?limit=500";
+      const yf = document.getElementById("year-from");
+      const yt = document.getElementById("year-to");
+      const rm = document.getElementById("rating-min");
+      if (yf && yf.value) url += "&yearFrom=" + yf.value;
+      if (yt && yt.value) url += "&yearTo=" + yt.value;
+      if (rm && rm.value) url += "&ratingMin=" + rm.value;
+      trackListTitle.textContent = "フィルタ結果";
+      switchTab("tracks");
+      loadTracksWithUrl(url);
+    });
+  }
+
+  /* ── Track load ── */
+  async function loadTracksForPlaylist(playlistId) {
+    showLoading();
+    try {
+      let res;
+      if (playlistId === null) {
+        res = await apiFetch("/api/tracks?limit=500");
+      } else {
+        res = await apiFetch("/api/playlists/" + playlistId + "/tracks");
+      }
+      if (!res.ok) { showToast("曲の読み込みに失敗しました", "error"); return; }
+      tracks = await res.json();
+      currentQueue = tracks.map(function (t) { return t.trackId; });
+      renderTracks(tracks);
+    } catch (e) {
+      if (!String(e).startsWith("Error: auth:")) {
+        showToast("曲の読み込みに失敗しました", "error");
+      }
+    }
+  }
+
+  async function searchTracks(q) {
+    showLoading();
+    try {
+      const res = await apiFetch("/api/tracks?q=" + encodeURIComponent(q) + "&limit=500");
+      if (!res.ok) { showToast("検索に失敗しました", "error"); return; }
+      tracks = await res.json();
+      currentQueue = tracks.map(function (t) { return t.trackId; });
+      trackListTitle.textContent = "検索: " + q;
+      renderTracks(tracks);
+    } catch (e) {
+      if (!String(e).startsWith("Error: auth:")) {
+        showToast("検索に失敗しました", "error");
+      }
+    }
+  }
+
+  function showLoading() {
+    trackList.innerHTML = '<li class="loading-row">読み込み中...</li>';
+    emptyMsg.style.display = "none";
+  }
+
+  function renderTracks(list) {
+    trackList.innerHTML = "";
+    if (!list || list.length === 0) {
+      emptyMsg.style.display = "";
+      trackCount.textContent = "";
+      return;
+    }
+    emptyMsg.style.display = "none";
+    trackCount.textContent = list.length + " 曲";
+
+    const frag = document.createDocumentFragment();
+    list.forEach(function (t, i) {
+      const li = document.createElement("li");
+      li.className = "track-row" + (t.fileExists === false ? " unavailable" : "");
+      li.dataset.trackId = t.trackId;
+      li.innerHTML =
+        '<span class="track-idx">' + (i + 1) + '</span>' +
+        '<span class="playing-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="var(--accent)">' +
+          '<rect x="2" y="4" width="4" height="16"/>' +
+          '<rect x="10" y="4" width="4" height="16"/>' +
+          '<rect x="18" y="4" width="4" height="16"/>' +
+        '</svg></span>' +
+        '<div class="track-info">' +
+          '<div class="track-name">' + esc(t.name || "(不明)") + '</div>' +
+          '<div class="track-sub">' + esc(t.artist || "") + (t.artist && t.album ? " — " : "") + esc(t.album || "") + '</div>' +
+        '</div>' +
+        '<span class="track-duration">' + fmtTime(t.totalTimeMs) + '</span>' +
+        '<button class="track-sim-btn" title="似た曲">≈</button>';
+
+      if (t.fileExists !== false) {
+        li.addEventListener("click", function () {
+          playTrackAt(i, t);
+        });
+      }
+
+      // Similar button
+      const simBtn = li.querySelector(".track-sim-btn");
+      if (simBtn) {
+        simBtn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          showSimilar(t);
+        });
+      }
+
+      frag.appendChild(li);
+    });
+    trackList.appendChild(frag);
+    updateActiveRow();
+  }
+
+  /* ── Play ── */
+  async function playTrackAt(idx, track) {
+    const t = track || tracks[idx];
+    if (!t) return;
+    currentQueueIdx = idx;
+    currentTrackId = t.trackId;
+    updateNowPlaying(t);
+    updateActiveRow();
+
+    if (remoteMode) {
+      try {
+        await apiFetch("/api/remote/set-queue", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ trackIds: currentQueue, startIndex: idx })
+        });
+        const res = await apiFetch("/api/remote/play", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ trackId: t.trackId })
+        });
+        if (!res.ok && res.status !== 204) showToast("PC 再生に失敗しました", "error");
+        else setPlayingUI(true);
+      } catch (e) {
+        if (!String(e).startsWith("Error: auth:")) showToast("PC 再生に失敗しました", "error");
+      }
+    } else {
+      audio.src = api("/api/tracks/" + t.trackId + "/stream");
+      audio.play().then(function () {
+        setPlayingUI(true);
+      }).catch(function (err) {
+        showToast("再生できませんでした: " + err.message, "error");
+      });
+    }
+  }
+
+  function updateNowPlaying(t) {
+    nowName.textContent = t.name || "(不明)";
+    nowName.style.color = "";
+    nowArtist.textContent = t.artist || "";
+    // Artwork
+    const aw = document.getElementById("now-artwork");
+    if (aw) {
+      aw.src = api("/api/tracks/" + t.trackId + "/artwork");
+      aw.style.display = "block";
+    }
+  }
+
+  function updateActiveRow() {
+    document.querySelectorAll(".track-row").forEach(function (row) {
+      const id = parseInt(row.dataset.trackId, 10);
+      const active = id === currentTrackId;
+      row.classList.toggle("active", active);
+      row.classList.toggle("paused", active && !isPlaying);
+    });
+  }
+
+  function setPlayingUI(playing) {
+    isPlaying = playing;
+    ppIconPlay.style.display  = playing ? "none"  : "";
+    ppIconPause.style.display = playing ? ""      : "none";
+    updateActiveRow();
+  }
+
+  /* ── Player bar controls ── */
+  playPauseBtn.addEventListener("click", async function () {
+    if (remoteMode) {
+      try {
+        const action = isPlaying ? "pause" : "resume";
+        await apiFetch("/api/remote/" + action, { method: "POST" });
+        setPlayingUI(!isPlaying);
+      } catch (e) { /* toast handled */ }
+    } else {
+      if (audio.paused) {
+        audio.play().catch(function (e) { showToast("再生できません: " + e.message, "error"); });
+      } else {
+        audio.pause();
+      }
+    }
+  });
+
+  prevBtn.addEventListener("click", async function () {
+    if (remoteMode) {
+      try {
+        const res = await apiFetch("/api/remote/prev", { method: "POST" });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.trackId != null) syncRemoteTrack(data.trackId);
+        }
+      } catch (e) { /* handled */ }
+    } else {
+      const prev = currentQueueIdx - 1;
+      if (prev >= 0) playTrackAt(prev);
+    }
+  });
+
+  nextBtn.addEventListener("click", async function () {
+    if (remoteMode) {
+      try {
+        const res = await apiFetch("/api/remote/next", { method: "POST" });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.trackId != null) syncRemoteTrack(data.trackId);
+        }
+      } catch (e) { /* handled */ }
+    } else {
+      const next = currentQueueIdx + 1;
+      if (next < tracks.length) playTrackAt(next);
+    }
+  });
+
+  /* Seek slider */
+  seekSlider.addEventListener("mousedown",  function () { isSeeking = true; });
+  seekSlider.addEventListener("touchstart", function () { isSeeking = true; }, { passive: true });
+
+  seekSlider.addEventListener("change", async function () {
+    const val = parseInt(seekSlider.value, 10);
+    if (remoteMode) {
+      const tot = parseInt(seekSlider.max, 10) || 1000;
+      const pos = Math.round((val / 1000) * tot);
+      try {
+        await apiFetch("/api/remote/seek", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ positionMs: pos })
+        });
+      } catch (e) { /* handled */ }
+    } else {
+      if (audio.duration) {
+        audio.currentTime = (val / 1000) * audio.duration;
+      }
+    }
+    isSeeking = false;
+  });
+
+  /* ── Audio events (local mode) ── */
+  audio.addEventListener("timeupdate", function () {
+    if (remoteMode || isSeeking) return;
+    const cur = audio.currentTime;
+    const dur = audio.duration || 0;
+    timeCur.textContent = fmtTime(cur * 1000);
+    timeTot.textContent = fmtTime(dur * 1000);
+    if (dur > 0) seekSlider.value = Math.round((cur / dur) * 1000);
+  });
+
+  audio.addEventListener("play",  function () { if (!remoteMode) setPlayingUI(true); });
+  audio.addEventListener("pause", function () { if (!remoteMode) setPlayingUI(false); });
+
+  audio.addEventListener("ended", function () {
+    if (remoteMode) return;
+    setPlayingUI(false);
+    const next = currentQueueIdx + 1;
+    if (next < tracks.length) {
+      playTrackAt(next);
+    } else {
+      timeCur.textContent = "0:00";
+      seekSlider.value = 0;
+    }
+  });
+
+  audio.addEventListener("error", function () {
+    if (!remoteMode) showToast("再生エラーが発生しました", "error");
+  });
+
+  /* ── Remote polling ── */
+  function startRemotePoller() {
+    stopRemotePoller();
+    pollRemote();
+    remotePoller = setInterval(pollRemote, 1000);
+  }
+
+  function stopRemotePoller() {
+    if (remotePoller !== null) {
+      clearInterval(remotePoller);
+      remotePoller = null;
+    }
+  }
+
+  async function pollRemote() {
+    try {
+      const res = await apiFetch("/api/remote/state");
+      if (!res.ok) return;
+      const state = await res.json();
+      applyRemoteState(state);
+    } catch (e) { /* silent */ }
+  }
+
+  function applyRemoteState(state) {
+    if (state.currentTrackId != null && state.currentTrackId !== currentTrackId) {
+      syncRemoteTrack(state.currentTrackId);
+    }
+    setPlayingUI(!!state.isPlaying);
+
+    const dur = state.durationMs || 0;
+    const pos = state.positionMs || 0;
+    timeCur.textContent = fmtTime(pos);
+    timeTot.textContent = fmtTime(dur);
+    if (!isSeeking) {
+      seekSlider.max   = 1000;
+      seekSlider.value = dur > 0 ? Math.round((pos / dur) * 1000) : 0;
+    }
+  }
+
+  function syncRemoteTrack(trackId) {
+    currentTrackId = trackId;
+    const t = tracks.find(function (x) { return x.trackId === trackId; });
+    if (t) {
+      updateNowPlaying(t);
+      currentQueueIdx = tracks.indexOf(t);
+    }
+    updateActiveRow();
+  }
+
+  /* ── Search (debounce) ── */
+  let searchTimer = null;
+  searchBox.addEventListener("input", function () {
+    const q = searchBox.value.trim();
+    clearTimeout(searchTimer);
+    if (q === "") {
+      loadTracksForPlaylist(activePlaylistId);
+      return;
+    }
+    searchTimer = setTimeout(function () { searchTracks(q); }, 400);
+  });
+
+  /* ── Up Next queue panel ── */
+  const queuePanel    = document.getElementById("queue-panel");
+  const queueList     = document.getElementById("queue-list");
+  const queueBtn      = document.getElementById("queue-btn");
+  const queueCloseBtn = document.getElementById("queue-close-btn");
+
+  queueBtn.addEventListener("click", async function () {
+    if (queuePanel.classList.contains("open")) {
+      queuePanel.classList.remove("open");
+      return;
+    }
+    queuePanel.classList.add("open");
+
+    if (remoteMode) {
+      try {
+        const res = await apiFetch("/api/remote/queue");
+        if (res.ok) {
+          const data = await res.json();
+          renderRemoteQueue(data);
+          return;
+        }
+      } catch (e) { /* fall through to local queue */ }
+    }
+    renderLocalQueue();
+  });
+
+  queueCloseBtn.addEventListener("click", function () {
+    queuePanel.classList.remove("open");
+  });
+
+  function renderLocalQueue() {
+    queueList.innerHTML = "";
+    const start = currentQueueIdx;
+    const slice = tracks.slice(start >= 0 ? start : 0);
+    if (slice.length === 0) {
+      queueList.innerHTML = '<li class="queue-row" style="color:var(--text-muted)">キューは空です</li>';
+      return;
+    }
+    slice.forEach(function (t, i) {
+      const li = document.createElement("li");
+      li.className = "queue-row" + (i === 0 ? " current" : "");
+      li.innerHTML =
+        '<span style="color:var(--text-muted);width:20px;flex-shrink:0">' + (i === 0 ? "▶" : (i + 1)) + '</span>' +
+        '<div style="flex:1;min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(t.name || "(不明)") + '</div>' +
+        '<div style="font-size:11px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(t.artist || "") + '</div></div>' +
+        '<span style="font-size:11px;color:var(--text-muted)">' + fmtTime(t.totalTimeMs) + '</span>';
+      const absIdx = (start >= 0 ? start : 0) + i;
+      li.addEventListener("click", function () {
+        playTrackAt(absIdx, t);
+        queuePanel.classList.remove("open");
+      });
+      queueList.appendChild(li);
+    });
+  }
+
+  async function renderRemoteQueue(data) {
+    const trackIds = data.trackIds;
+    const currentIndex = data.currentIndex;
+    if (!trackIds || trackIds.length === 0) {
+      queueList.innerHTML = '<li class="queue-row" style="color:var(--text-muted)">キューは空です</li>';
+      return;
+    }
+
+    const ci = currentIndex || 0;
+    const upNextIds = trackIds.slice(ci);
+
+    queueList.innerHTML = '<li class="queue-row loading-row">読み込み中...</li>';
+
+    // Try to resolve from already-loaded tracks first
+    var resolvedMap = {};
+    tracks.forEach(function (t) { resolvedMap[t.trackId] = t; });
+
+    // Check if we need to fetch additional tracks
+    const missing = upNextIds.filter(function (id) { return !resolvedMap[id]; });
+    if (missing.length > 0) {
+      try {
+        const res = await apiFetch("/api/tracks/by-ids", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ trackIds: missing })
+        });
+        if (res.ok) {
+          const fetched = await res.json();
+          fetched.forEach(function (t) { resolvedMap[t.trackId] = t; });
+        }
+      } catch (e) { /* proceed with what we have */ }
+    }
+
+    queueList.innerHTML = "";
+    upNextIds.forEach(function (id, i) {
+      const t = resolvedMap[id];
+      const li = document.createElement("li");
+      li.className = "queue-row" + (i === 0 ? " current" : "");
+      li.innerHTML =
+        '<span style="color:var(--text-muted);width:20px;flex-shrink:0">' + (i === 0 ? "▶" : (i + 1)) + '</span>' +
+        '<div style="flex:1;min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(t ? (t.name || "(不明)") : id) + '</div>' +
+        '<div style="font-size:11px;color:var(--text-muted)">' + esc(t ? (t.artist || "") : "") + '</div></div>' +
+        '<span style="font-size:11px;color:var(--text-muted)">' + (t ? fmtTime(t.totalTimeMs) : "") + '</span>';
+      queueList.appendChild(li);
+    });
+  }
+
+  /* ── Similar tracks ── */
+  const similarModal = document.getElementById("similar-modal");
+  document.getElementById("similar-close").addEventListener("click", function () {
+    similarModal.style.display = "none";
+  });
+  similarModal.addEventListener("click", function (e) {
+    if (e.target === similarModal) similarModal.style.display = "none";
+  });
+
+  async function showSimilar(t) {
+    document.getElementById("similar-title").textContent = "似た曲: " + (t.name || "(不明)");
+    document.getElementById("similar-list").innerHTML = '<li class="loading-row">読み込み中...</li>';
+    similarModal.style.display = "";
+
+    try {
+      const res = await apiFetch("/api/tracks/" + t.trackId + "/similar");
+      if (!res.ok) {
+        document.getElementById("similar-list").innerHTML = '<li class="loading-row" style="color:var(--danger)">読み込み失敗</li>';
+        return;
+      }
+      const items = await res.json();
+      const list = document.getElementById("similar-list");
+      list.innerHTML = "";
+      if (!items || items.length === 0) {
+        list.innerHTML = '<li class="loading-row" style="color:var(--text-muted)">似た曲が見つかりません</li>';
+        return;
+      }
+      items.forEach(function (item) {
+        const s = item.track || item;
+        const li = document.createElement("li");
+        li.className = "track-row";
+        li.style.cursor = "pointer";
+        li.innerHTML =
+          '<div class="track-info"><div class="track-name">' + esc(s.name || "(不明)") + '</div>' +
+          '<div class="track-sub">' + esc(s.artist || "") + (s.artist && s.album ? " — " : "") + esc(s.album || "") + '</div></div>' +
+          (item.distance != null ? '<span class="track-duration">' + Math.round((1 - item.distance) * 100) + '%</span>' : '');
+        li.addEventListener("click", function () {
+          similarModal.style.display = "none";
+          const idx = tracks.findIndex(function (x) { return x.trackId === s.trackId; });
+          if (idx >= 0) {
+            playTrackAt(idx);
+          } else {
+            currentTrackId = s.trackId;
+            currentQueueIdx = -1;
+            updateNowPlaying(s);
+            if (remoteMode) {
+              apiFetch("/api/remote/play", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ trackId: s.trackId })
+              }).catch(function () {});
+            } else {
+              audio.src = api("/api/tracks/" + s.trackId + "/stream");
+              audio.play().catch(function () {});
+            }
+            setPlayingUI(true);
+          }
+        });
+        list.appendChild(li);
+      });
+    } catch (e) {
+      if (!String(e).startsWith("Error: auth:")) {
+        document.getElementById("similar-list").innerHTML = '<li class="loading-row" style="color:var(--danger)">読み込み失敗</li>';
+      }
+    }
+  }
+
+  /* ── Init ── */
+  loadPlaylists();
+  loadTracksForPlaylist(null);
+  loadGenres();
+})();
+</script>
+</body>
+</html>
