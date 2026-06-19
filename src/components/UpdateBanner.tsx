@@ -44,7 +44,8 @@ export function UpdateBanner() {
     }
   }, [info]);
 
-  // 直接ダウンロードできるならインストーラを取得して起動。
+  // 直接適用できるなら更新を取得して適用（通常は exe をその場差し替え→再起動。
+  // インストーラ必須版やフォールバック時のみインストーラ起動）。
   // それが無い / 失敗したらリリースページを開く。
   const handleDownload = useCallback(async () => {
     if (!info) return;
@@ -52,7 +53,7 @@ export function UpdateBanner() {
       setBusy(true);
       try {
         await systemApi.downloadAndRunUpdate(info.downloadUrl);
-        return; // インストーラ起動 (アプリは閉じられる可能性あり)
+        return; // 適用後アプリは再起動 / 終了する
       } catch (e) {
         console.warn("Direct download failed, opening release page:", e);
       } finally {
@@ -103,7 +104,18 @@ export function UpdateBanner() {
         <strong>{info.latestVersion}</strong> is available
         <span className="update-banner-current"> (you're on v{info.currentVersion})</span>
       </span>
-      <button className="toolbar-btn primary" onClick={handleDownload} disabled={busy}>
+      <button
+        className="toolbar-btn primary"
+        onClick={handleDownload}
+        disabled={busy}
+        title={
+          info.downloadUrl
+            ? info.selfReplace
+              ? "再起動して即更新（インストーラ不要）"
+              : "インストーラで更新します"
+            : "リリースページを開きます"
+        }
+      >
         {busy ? "Downloading…" : info.downloadUrl ? "今すぐ更新" : "Download"}
       </button>
       {info.downloadUrl && (

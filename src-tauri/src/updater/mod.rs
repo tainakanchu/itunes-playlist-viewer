@@ -28,6 +28,8 @@ pub struct UpdateInfo {
     pub download_url: Option<String>,
     /// ポータブル運用（exe の隣に portable.txt がある）か。
     pub portable: bool,
+    /// 選んだ更新がインストーラ無しの exe その場差し替え（再起動のみ）か。
+    pub self_replace: bool,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -66,19 +68,30 @@ pub fn is_portable_zip_url(url: &str) -> bool {
     u.ends_with("_portable.zip") || (u.contains("portable") && u.ends_with(".zip"))
 }
 
-/// この OS 向けのダウンロード資産を選ぶ。Windows のみ対応。
-/// ポータブル時は `*_portable.zip` を優先し、無ければインストーラ (setup → msi → exe)。
-fn pick_asset(assets: &[GhAsset], portable: bool) -> Option<String> {
-    if !cfg!(target_os = "windows") {
-        return None;
-    }
+/// リリース body に `[installer-required]` マーカーがあれば true。
+/// その版は exe 単純差し替えでは不足するため、インストーラ経由に強制する安全弁
+/// （将来 exe 以外の同梱物が増えた版で立てる運用）。
+fn body_requires_installer(body: Option<&str>) -> bool {
+    body.map(|b| b.to_lowercase().contains("[installer-required]"))
+        .unwrap_or(false)
+}
+
+/// Windows 向けの資産選択（純粋関数・クロスプラットフォームでテスト可能）。
+/// ポータブル運用、または installer 必須でない通常更新は `*_portable.zip` を優先
+/// （= その場で exe 差し替え・インストーラ不要）。zip が無い / installer 必須なら
+/// インストーラ（setup → msi → exe）にフォールバックする。
+fn select_windows_asset(
+    assets: &[GhAsset],
+    portable: bool,
+    installer_required: bool,
+) -> Option<String> {
     let find = |pred: &dyn Fn(&str) -> bool| {
         assets
             .iter()
             .find(|a| pred(&a.name.to_lowercase()))
             .map(|a| a.browser_download_url.clone())
     };
-    if portable {
+    if portable || !installer_required {
         if let Some(z) = find(&|n| is_portable_zip_url(n)) {
             return Some(z);
         }
@@ -86,6 +99,14 @@ fn pick_asset(assets: &[GhAsset], portable: bool) -> Option<String> {
     find(&|n| n.ends_with("-setup.exe") || n.contains("setup"))
         .or_else(|| find(&|n| n.ends_with(".msi")))
         .or_else(|| find(&|n| n.ends_with(".exe")))
+}
+
+/// この OS 向けのダウンロード資産を選ぶ。Windows のみ対応。
+fn pick_asset(assets: &[GhAsset], portable: bool, installer_required: bool) -> Option<String> {
+    if !cfg!(target_os = "windows") {
+        return None;
+    }
+    select_windows_asset(assets, portable, installer_required)
 }
 
 pub async fn check_for_update() -> Result<UpdateInfo, String> {
@@ -113,6 +134,7 @@ pub async fn check_for_update() -> Result<UpdateInfo, String> {
             published_at: None,
             download_url: None,
             portable,
+            self_replace: false,
         });
     }
     if !resp.status().is_success() {
@@ -134,13 +156,16 @@ pub async fn check_for_update() -> Result<UpdateInfo, String> {
             published_at: rel.published_at,
             download_url: None,
             portable,
+            self_replace: false,
         });
     }
 
     let current = env!("CARGO_PKG_VERSION").to_string();
     let latest_clean = rel.tag_name.trim_start_matches('v').to_string();
     let available = is_newer(&latest_clean, &current);
-    let download_url = pick_asset(&rel.assets, portable);
+    let installer_required = body_requires_installer(rel.body.as_deref());
+    let download_url = pick_asset(&rel.assets, portable, installer_required);
+    let self_replace = download_url.as_deref().map(is_portable_zip_url).unwrap_or(false);
 
     Ok(UpdateInfo {
         available,
@@ -151,6 +176,7 @@ pub async fn check_for_update() -> Result<UpdateInfo, String> {
         published_at: rel.published_at,
         download_url,
         portable,
+        self_replace,
     })
 }
 
@@ -322,5 +348,61 @@ mod tests {
     fn ignores_prerelease_suffix() {
         // "0.2.0-beta.1" is parsed as 0.2.0, so equal to "0.2.0".
         assert!(!is_newer("0.2.0-beta.1", "0.2.0"));
+    }
+
+    fn asset(name: &str) -> GhAsset {
+        GhAsset {
+            name: name.to_string(),
+            browser_download_url: format!("https://example.test/{name}"),
+        }
+    }
+
+    #[test]
+    fn select_prefers_portable_zip_for_installed() {
+        let assets = vec![
+            asset("Crateforge_0.6.3_x64-setup.exe"),
+            asset("Crateforge_0.6.3_x64_portable.zip"),
+            asset("Crateforge_0.6.3_x64_en-US.msi"),
+        ];
+        let url = select_windows_asset(&assets, false, false).unwrap();
+        assert!(url.ends_with("_portable.zip"), "got {url}");
+    }
+
+    #[test]
+    fn select_forces_installer_when_required() {
+        let assets = vec![
+            asset("Crateforge_0.6.3_x64-setup.exe"),
+            asset("Crateforge_0.6.3_x64_portable.zip"),
+        ];
+        let url = select_windows_asset(&assets, false, true).unwrap();
+        assert!(url.contains("setup"), "got {url}");
+    }
+
+    #[test]
+    fn select_portable_prefers_zip_even_if_installer_required() {
+        let assets = vec![
+            asset("Crateforge_0.6.3_x64-setup.exe"),
+            asset("Crateforge_0.6.3_x64_portable.zip"),
+        ];
+        let url = select_windows_asset(&assets, true, true).unwrap();
+        assert!(url.ends_with("_portable.zip"), "got {url}");
+    }
+
+    #[test]
+    fn select_falls_back_to_installer_when_no_zip() {
+        let assets = vec![
+            asset("Crateforge_0.6.3_x64-setup.exe"),
+            asset("Crateforge_0.6.3_x64_en-US.msi"),
+        ];
+        let url = select_windows_asset(&assets, false, false).unwrap();
+        assert!(url.contains("setup"), "got {url}");
+    }
+
+    #[test]
+    fn body_marker_detected() {
+        assert!(body_requires_installer(Some("notes...\n[installer-required]\nx")));
+        assert!(body_requires_installer(Some("[Installer-Required]")));
+        assert!(!body_requires_installer(Some("normal notes")));
+        assert!(!body_requires_installer(None));
     }
 }
