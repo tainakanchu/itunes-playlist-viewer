@@ -10,6 +10,24 @@ Each release is documented in both Japanese and English.
 
 ## [Unreleased]
 
+## [v0.7.0-alpha.1] - 2026-06-19
+
+### 日本語
+
+**実機テスト用のプレリリース（alpha）**です。GitHub の prerelease として公開され、アプリ内アップデータには配信されません（Releases ページから手動で取得してください）。
+
+#### 追加（テスト対象）
+- **LAN ストリーミング + Web プレイヤー + デスクトップ遠隔操作**：「LAN 公開」を有効にすると、同じ Wi-Fi のスマホ/TV のブラウザから `http://<PCのIP>:8787/?token=…` でライブラリを再生できます。「この端末で再生」/「PCで再生（リモコン）」を切替可能。トークン必須・読み取り専用。(#53)
+- **フォント設定 + Noto CJK フォールバック**：表示フォントを選べ、Noto Sans CJK をダウンロードすると簡体字/繁体字/日本語が1フォントに統一されます。(#51)
+
+### English
+
+**Pre-release (alpha) for on-device testing.** Published as a GitHub prerelease and NOT delivered via the in-app updater (grab it from the Releases page).
+
+#### Added (under test)
+- **LAN streaming + web player + desktop remote control**: enable "LAN 公開" to play your library from a phone/TV browser on the same Wi-Fi. (#53)
+- **Font settings + Noto CJK fallback**: choose the UI font and unify CJK rendering. (#51)
+
 ## [v0.6.4] - 2026-06-19
 
 ### 日本語
