@@ -10,6 +10,28 @@ Each release is documented in both Japanese and English.
 
 ## [Unreleased]
 
+## [v0.7.0-2] - 2026-06-20
+
+### 日本語
+
+**実機テスト用プレリリース（alpha 相当）**。GitHub prerelease＝アプリ内アップデータには非配信。前回 alpha（v0.7.0-1）の Web プレイヤーを強化:
+
+#### 追加（テスト対象）
+- **アートワーク表示**（再生バーにジャケット）/ **ジャンル・年代・レートで絞り込み** / **Up Next（次に流れる曲）表示** / **似た曲から広げる**。
+- **プレイリストを見つけやすく**：モバイルは画面下部タブバー（曲 / プレイリスト / ジャンル）に再構成。
+- **PWA 対応（iOS）**：ホーム画面に追加で全画面アプリ化（manifest・アイコン・apple メタ）。トークンは端末に保持され、起動し直しても認証が続きます。
+- **接続が分かりやすく**：設定に**おすすめ接続先＋QR コード**を表示（QR をスマホで読むだけ）。余分な IP は折りたたみ。
+
+### English
+
+**Pre-release (alpha) for on-device testing.** GitHub prerelease (not delivered via the in-app updater). Enhances the web player from v0.7.0-1:
+
+#### Added (under test)
+- Artwork in the player bar; filter by genre/decade/rating; Up Next queue; "similar tracks" jump.
+- Playlists made discoverable via a mobile bottom tab bar (Songs / Playlists / Genres).
+- PWA (iOS): add-to-home-screen full-screen app; token persisted on device.
+- Settings now show a recommended connection URL + **QR code**; extra IPs collapsed.
+
 ## [v0.7.0-1] - 2026-06-19
 
 ### 日本語
