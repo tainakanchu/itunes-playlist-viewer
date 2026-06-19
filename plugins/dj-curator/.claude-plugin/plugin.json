@@ -7,8 +7,8 @@
   "author": {
     "name": "tainakanchu"
   },
-  "homepage": "https://github.com/tainakanchu/itunes-playlist-viewer/tree/main/plugins/dj-curator",
-  "repository": "https://github.com/tainakanchu/itunes-playlist-viewer",
+  "homepage": "https://github.com/tainakanchu/crateforge/tree/main/plugins/dj-curator",
+  "repository": "https://github.com/tainakanchu/crateforge",
   "license": "MIT",
   "keywords": ["dj", "music", "playlist", "crateforge", "curation", "itunes"]
 }

@@ -48,7 +48,7 @@ CI は 2 つに分かれています:
 
 ```bash
 # 初回
-git remote add origin git@github.com:<you>/itunes-playlist-viewer.git
+git remote add origin git@github.com:<you>/crateforge.git
 git push -u origin main
 # ↑ push / PR では ci.yml の軽量チェックのみ (フルビルド・成果物生成はしない)。
 
@@ -153,7 +153,7 @@ Crateforge は **ローカル HTTP API サーバー** を内蔵しており、Cl
 このリポジトリ自体が plugin marketplace になっています。Claude Code で:
 
 ```
-/plugin marketplace add tainakanchu/itunes-playlist-viewer
+/plugin marketplace add tainakanchu/crateforge
 /plugin install dj-curator@crateforge
 ```
 

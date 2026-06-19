@@ -3,7 +3,7 @@ use crate::models::{ReleaseCandidate, ReleaseTrack};
 const USER_AGENT: &str = concat!(
     "Crateforge/",
     env!("CARGO_PKG_VERSION"),
-    " ( https://github.com/tainakanchu/itunes-playlist-viewer )"
+    " ( https://github.com/tainakanchu/crateforge )"
 );
 
 const MB_BASE: &str = "https://musicbrainz.org/ws/2";
