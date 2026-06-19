@@ -5,6 +5,9 @@ export interface ApiServerStatus {
   running: boolean;
   port: number;
   url: string | null;
+  lanEnabled: boolean;
+  token: string | null;
+  lanUrls: string[];
 }
 
 /// API サーバーの現在の状態を取得。
@@ -19,4 +22,14 @@ export async function setApiServerConfig(
   port: number,
 ): Promise<ApiServerStatus> {
   return invoke("set_api_server_config", { enabled, port });
+}
+
+/// LAN 公開を有効／無効にする。有効化時にトークンが自動生成される。
+export async function setApiLanEnabled(enabled: boolean): Promise<ApiServerStatus> {
+  return invoke("set_api_lan_enabled", { enabled });
+}
+
+/// アクセストークンを再生成する。既存の URL のトークンは無効になる。
+export async function regenerateApiToken(): Promise<ApiServerStatus> {
+  return invoke("regenerate_api_token");
 }

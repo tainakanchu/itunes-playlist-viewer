@@ -74,6 +74,8 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
   const [apiStatus, setApiStatus] = useState<ApiServerStatus | null>(null);
   // ポート入力の一時 state（フォーカス中の未確定値）
   const [portInput, setPortInput] = useState<string>("8787");
+  // LAN 公開 URL コピー済みフラグ（URL → タイムアウト ID）
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
   // fonts
   const [fontList, setFontList] = useState<string[]>([]);
@@ -192,6 +194,35 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
       }).catch(() => {});
     }
   }, [apiStatus, portInput]);
+
+  // LAN 公開トグル。
+  const handleToggleLan = useCallback(async (checked: boolean) => {
+    try {
+      const next = await serverApi.setApiLanEnabled(checked);
+      setApiStatus(next);
+    } catch (err) {
+      alert(`LAN 公開の設定に失敗しました: ${err}`);
+      serverApi.getApiServerStatus().then(setApiStatus).catch(() => {});
+    }
+  }, []);
+
+  // トークン再生成。
+  const handleRegenerateToken = useCallback(async () => {
+    try {
+      const next = await serverApi.regenerateApiToken();
+      setApiStatus(next);
+    } catch (err) {
+      alert(`トークンの再生成に失敗しました: ${err}`);
+    }
+  }, []);
+
+  // URL をクリップボードにコピーし、一時的に「コピーしました」を表示。
+  const handleCopyUrl = useCallback((url: string) => {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedUrl(url);
+      setTimeout(() => setCopiedUrl((prev) => (prev === url ? null : prev)), 2000);
+    }).catch(() => {});
+  }, []);
 
   // CJK 字体ゆれ吸収レベルの変更。失敗時はアラートを表示して現在値に戻す。
   const handleChangeFoldLevel = useCallback(async (v: string) => {
@@ -588,6 +619,92 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
                     <span>有効ですが起動に失敗しています（ポートが使用中の可能性があります）。</span>
                   </div>
                 )}
+
+                {/* LAN 公開セクション */}
+                <div className="settings-sectitle">LAN 公開（ウェブプレイヤー）</div>
+
+                <Row
+                  title="LAN 公開（スマホ/TV で再生）"
+                  desc="同じ Wi-Fi の端末のブラウザからライブラリを再生できます。読み取り専用＋トークン必須。"
+                >
+                  <Toggle
+                    on={apiStatus?.lanEnabled ?? false}
+                    onClick={() => handleToggleLan(!(apiStatus?.lanEnabled ?? false))}
+                    disabled={!(apiStatus?.running ?? false)}
+                  />
+                </Row>
+
+                {!(apiStatus?.running ?? false) && (
+                  <div className="settings-note">
+                    <Icon name="info" size={14} />
+                    <span>LAN 公開を使うには、先に API サーバーを有効化してください。</span>
+                  </div>
+                )}
+
+                {apiStatus?.lanEnabled && apiStatus.running && (
+                  <>
+                    {apiStatus.lanUrls.length > 0 ? (
+                      <div className="settings-kv">
+                        <div>
+                          <span className="k">接続 URL（スマホ/TV で開く）</span>
+                        </div>
+                        {apiStatus.lanUrls.map((u) => {
+                          const fullUrl = `${u}/?token=${apiStatus.token}`;
+                          return (
+                            <div key={u} style={{ alignItems: "center" }}>
+                              <span className="v mono" style={{ flex: 1, wordBreak: "break-all" }}>
+                                {fullUrl}
+                              </span>
+                              <button
+                                className="toolbar-btn"
+                                onClick={() => handleCopyUrl(fullUrl)}
+                                style={{ marginLeft: 6, flexShrink: 0 }}
+                              >
+                                {copiedUrl === fullUrl ? (
+                                  <>
+                                    <Icon name="check" size={13} /> コピーしました
+                                  </>
+                                ) : (
+                                  <>
+                                    <Icon name="filePlus" size={13} /> コピー
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="settings-note">
+                        <Icon name="warning" size={14} />
+                        <span>LAN IP を取得できませんでした。</span>
+                      </div>
+                    )}
+
+                    <Row
+                      title="アクセストークン"
+                      desc="再生成すると既存 URL のトークンは無効になります。"
+                    >
+                      <div className="settings-pathrow">
+                        <span className="settings-badge mono" style={{ fontFamily: "monospace" }}>
+                          {apiStatus.token
+                            ? `${apiStatus.token.slice(0, 8)}…`
+                            : "（未設定）"}
+                        </span>
+                        <button className="toolbar-btn" onClick={handleRegenerateToken}>
+                          <Icon name="sparkle" size={14} /> 再生成
+                        </button>
+                      </div>
+                    </Row>
+
+                    <div className="settings-note warn">
+                      <Icon name="warning" size={14} />
+                      <span>
+                        同じネットワークの端末からアクセスできます。信頼できる Wi-Fi のみで有効にしてください。通信は暗号化されません（HTTP）。
+                      </span>
+                    </div>
+                  </>
+                )}
               </>
             )}
 
@@ -716,13 +833,14 @@ function Row({
   );
 }
 
-function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
+function Toggle({ on, onClick, disabled }: { on: boolean; onClick: () => void; disabled?: boolean }) {
   return (
     <button
-      className={"settings-toggle" + (on ? " on" : "")}
-      onClick={onClick}
+      className={"settings-toggle" + (on ? " on" : "") + (disabled ? " disabled" : "")}
+      onClick={disabled ? undefined : onClick}
       role="switch"
       aria-checked={on}
+      disabled={disabled}
     >
       <span className="knob" />
     </button>

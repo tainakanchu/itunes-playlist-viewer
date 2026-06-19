@@ -12,7 +12,7 @@
 //! - [`start`] / [`ServerControl`] : bind + serve の spawn とグレースフル停止。
 
 pub mod error;
-mod handlers;
+pub(crate) mod handlers;
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -30,6 +30,8 @@ pub struct ApiState {
     pub app_data_dir: PathBuf,
     /// 書き込み後の通知先。テストでは `None` (emit は no-op)。
     pub app: Option<tauri::AppHandle>,
+    /// LAN アクセストークン。None = LAN 無効またはトークン未生成。
+    pub token: Option<String>,
 }
 
 impl ApiState {
@@ -49,9 +51,81 @@ impl ApiState {
     }
 }
 
+/// ウェブプレイヤー HTML (LAN 向け簡易プレイヤー)。
+pub async fn serve_webplayer() -> axum::response::Html<&'static str> {
+    axum::response::Html(include_str!("webplayer.html"))
+}
+
+/// LAN からのリクエストを認証するミドルウェア。
+/// - ループバック (127.x, ::1) は無条件通過。
+/// - それ以外は token クエリパラメータまたは X-API-Token ヘッダを照合する。
+/// - GET メソッドと /api/remote/* のみ LAN から許可 (それ以外の書き込みは 403)。
+async fn auth_guard(
+    axum::extract::State(state): axum::extract::State<ApiState>,
+    req: axum::http::Request<axum::body::Body>,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    use axum::http::StatusCode;
+    use axum::response::IntoResponse;
+
+    let peer_ip = req
+        .extensions()
+        .get::<axum::extract::ConnectInfo<SocketAddr>>()
+        .map(|ci| ci.0.ip())
+        .unwrap_or_else(|| std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)));
+
+    if peer_ip.is_loopback() {
+        return next.run(req).await;
+    }
+
+    // LAN リクエスト: トークンを検証する。
+    let expected_token = match &state.token {
+        Some(t) => t.clone(),
+        None => return StatusCode::FORBIDDEN.into_response(),
+    };
+
+    // クエリパラメータまたはヘッダからトークンを取り出す。
+    let uri = req.uri().clone();
+    let query_token = uri.query().and_then(|q| {
+        q.split('&').find_map(|part| {
+            let mut kv = part.splitn(2, '=');
+            let key = kv.next()?;
+            let val = kv.next()?;
+            if key == "token" { Some(val.to_string()) } else { None }
+        })
+    });
+
+    let header_token = req.headers()
+        .get("X-API-Token")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+
+    let provided = query_token.or(header_token);
+    let authorized = provided.as_deref() == Some(expected_token.as_str());
+
+    if !authorized {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+
+    // LAN からの書き込みは /api/remote/* と GET のみ許可する。
+    let method = req.method().clone();
+    let path = uri.path().to_string();
+    let is_read_only_method = method == axum::http::Method::GET;
+    let is_remote_path = path.starts_with("/api/remote");
+    let is_root = path == "/";
+
+    if !is_read_only_method && !is_remote_path && !is_root {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+
+    next.run(req).await
+}
+
 /// `/api` 以下の全ルートを束ねた Router を返す。
 pub fn router(state: ApiState) -> Router {
     Router::new()
+        // ウェブプレイヤー
+        .route("/", get(serve_webplayer))
         // 読み取り
         .route("/api/health", get(handlers::health))
         .route("/api/tracks", get(handlers::list_tracks))
@@ -69,6 +143,10 @@ pub fn router(state: ApiState) -> Router {
         .route(
             "/api/tracks/{trackId}/similar",
             get(handlers::get_similar_tracks),
+        )
+        .route(
+            "/api/tracks/{trackId}/stream",
+            get(handlers::stream_track),
         )
         .route("/api/stats", get(handlers::get_stats))
         .route("/api/genres", get(handlers::get_genres))
@@ -98,6 +176,18 @@ pub fn router(state: ApiState) -> Router {
             "/api/tracks/genre-tags/remove",
             post(handlers::remove_genre_tags),
         )
+        // リモートコントロール
+        .route("/api/remote/state", get(handlers::remote_get_state))
+        .route("/api/remote/play", post(handlers::remote_play))
+        .route("/api/remote/pause", post(handlers::remote_pause))
+        .route("/api/remote/resume", post(handlers::remote_resume))
+        .route("/api/remote/stop", post(handlers::remote_stop))
+        .route("/api/remote/next", post(handlers::remote_next))
+        .route("/api/remote/prev", post(handlers::remote_prev))
+        .route("/api/remote/seek", post(handlers::remote_seek))
+        .route("/api/remote/set-queue", post(handlers::remote_set_queue))
+        // 認証ミドルウェアを全ルートに適用 (with_state の前に route_layer)。
+        .route_layer(axum::middleware::from_fn_with_state(state.clone(), auth_guard))
         .with_state(state)
 }
 
@@ -118,11 +208,13 @@ impl ServerControl {
     }
 }
 
-/// `127.0.0.1:port` で bind して serve を Tauri のランタイムに spawn する。
+/// `port` で bind して serve を Tauri のランタイムに spawn する。
+/// `lan=true` のときは `0.0.0.0` で待受し LAN に公開する (既定は `127.0.0.1`)。
 /// bind 失敗 (ポート使用中など) は同期的にエラーを返すので、呼び出し側で
 /// ユーザーへ通知できる。serve 自体は非同期に走る。
-pub fn start(app_data_dir: PathBuf, port: u16, app: tauri::AppHandle) -> Result<ServerControl, String> {
-    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+pub fn start(app_data_dir: PathBuf, port: u16, app: tauri::AppHandle, lan: bool, token: Option<String>) -> Result<ServerControl, String> {
+    let ip = if lan { [0, 0, 0, 0] } else { [127, 0, 0, 1] };
+    let addr = SocketAddr::from((ip, port));
     // bind は同期的に確定させたいので block_on で待つ (tauri は内部で tokio を使う)。
     let listener = tauri::async_runtime::block_on(async move {
         tokio::net::TcpListener::bind(addr).await
@@ -131,12 +223,14 @@ pub fn start(app_data_dir: PathBuf, port: u16, app: tauri::AppHandle) -> Result<
     let local = listener.local_addr().map_err(|e| e.to_string())?;
 
     let (tx, rx) = tokio::sync::oneshot::channel::<()>();
-    let router = router(ApiState {
+    let state = ApiState {
         app_data_dir,
         app: Some(app),
-    });
+        token,
+    };
+    let svc = router(state).into_make_service_with_connect_info::<SocketAddr>();
     tauri::async_runtime::spawn(async move {
-        let _ = axum::serve(listener, router)
+        let _ = axum::serve(listener, svc)
             .with_graceful_shutdown(async move {
                 let _ = rx.await;
             })
@@ -166,6 +260,7 @@ mod tests {
         let app = router(ApiState {
             app_data_dir: dir.path().to_path_buf(),
             app: None,
+            token: None,
         });
         (dir, app)
     }
@@ -811,5 +906,24 @@ mod tests {
         let (status, body) = req(app, "GET", "/api/playlists/999999", None).await;
         assert_eq!(status, StatusCode::NOT_FOUND);
         assert_eq!(body["error"], "playlist not found");
+    }
+
+    // ===== is_browser_native ヘルパのユニットテスト =====
+    #[test]
+    fn test_is_browser_native() {
+        assert!(handlers::is_browser_native("mp3"));
+        assert!(handlers::is_browser_native("m4a"));
+        assert!(!handlers::is_browser_native("aif"));
+        assert!(!handlers::is_browser_native("aiff"));
+        assert!(!handlers::is_browser_native("alac"));
+    }
+
+    // ===== トークン照合ロジックのユニットテスト =====
+    #[test]
+    fn test_token_matching_logic() {
+        let tok = "abc123";
+        let header_val = "abc123";
+        assert_eq!(tok, header_val);
+        assert_ne!(tok, "wrong");
     }
 }

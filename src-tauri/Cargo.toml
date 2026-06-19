@@ -51,7 +51,10 @@ fontdb = "0.23"
 # tauri は内部で tokio をランタイムに使うため、tauri::async_runtime 経由で
 # axum::serve を spawn できる。tokio の features は明示的に拾っておく。
 axum = "0.8"
-tokio = { version = "1", features = ["net", "sync", "rt", "macros"] }
+tokio = { version = "1", features = ["net", "sync", "rt", "macros", "io-util", "process"] }
+tower-http = { version = "0.6", features = ["fs"] }
+local-ip-address = "0.6"
+getrandom = "0.2"
 
 # === OS メディアコントロール連携（全 OS 共通） ===
 # Windows: SMTC (System Media Transport Controls)

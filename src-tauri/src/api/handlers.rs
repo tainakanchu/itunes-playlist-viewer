@@ -8,9 +8,13 @@
 
 use axum::extract::{Json as ExtractJson, Path, Query, State};
 use axum::http::StatusCode;
+use axum::response::IntoResponse;
+use axum::response::Response;
 use axum::Json;
 use serde::Deserialize;
 use serde_json::{json, Value};
+
+use tauri::Manager;
 
 use super::error::ApiError;
 use super::ApiState;
@@ -422,6 +426,274 @@ pub async fn remove_genre_tags(
         state.notify_library_changed(None);
     }
     Ok(Json(json!({ "updated": updated, "fileWriteFailed": file_failed })))
+}
+
+// ===== ストリーミング =====
+
+/// ブラウザがネイティブ再生できる拡張子かどうかを判定する。
+pub fn is_browser_native(ext: &str) -> bool {
+    matches!(ext, "mp3" | "m4a" | "mp4" | "aac" | "m4b" | "ogg" | "oga" | "opus" | "flac" | "wav" | "weba" | "webm")
+}
+
+/// `GET /api/tracks/{trackId}/stream` — 音声ファイルをストリーミング配信する。
+/// ブラウザがネイティブ再生できる形式はそのまま配信し、それ以外は ffmpeg で AAC にトランスコードする。
+pub async fn stream_track(
+    State(state): State<ApiState>,
+    Path(track_id): Path<i64>,
+    req: axum::extract::Request,
+) -> Result<Response, ApiError> {
+    let db = state.db()?;
+    let track = db
+        .get_track_by_track_id(track_id)
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| ApiError::not_found("track not found"))?;
+
+    let path_str = track.location_path.as_deref().unwrap_or("");
+    if path_str.is_empty() {
+        return Err(ApiError::not_found("no file path for this track"));
+    }
+    if !std::path::Path::new(path_str).exists() {
+        return Err(ApiError::not_found("audio file not found on disk"));
+    }
+
+    let ext = std::path::Path::new(path_str)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    if is_browser_native(&ext) {
+        // ブラウザネイティブ: tower-http ServeFile で Range リクエストも処理する。
+        use tower::ServiceExt;
+        use tower_http::services::ServeFile;
+
+        let service = ServeFile::new(path_str);
+        let result = service.oneshot(req).await;
+        match result {
+            Ok(resp) => Ok(resp.map(axum::body::Body::new).into_response()),
+            Err(_) => Err(ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "failed to serve file")),
+        }
+    } else {
+        // 非ネイティブ形式: ffmpeg で AAC にトランスコードしてバッファリング配信する。
+        use tokio::io::AsyncReadExt;
+
+        let app = state.app.as_ref().ok_or_else(|| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "no app handle"))?;
+        let ffmpeg_path = crate::ffmpeg::resolve(app)
+            .map(|(p, _)| p)
+            .ok_or_else(|| ApiError::new(StatusCode::SERVICE_UNAVAILABLE, "ffmpeg not found"))?;
+
+        let mut child = tokio::process::Command::new(&ffmpeg_path)
+            .args([
+                "-hide_banner", "-loglevel", "error",
+                "-i", path_str,
+                "-vn", "-c:a", "aac", "-b:a", "192k", "-f", "adts", "-",
+            ])
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+        let stdout = child.stdout.take()
+            .ok_or_else(|| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "no stdout from ffmpeg"))?;
+        let mut buf = Vec::new();
+        let mut reader = stdout;
+        reader.read_to_end(&mut buf).await
+            .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        let _ = child.wait().await;
+
+        Ok(axum::response::Response::builder()
+            .header("content-type", "audio/aac")
+            .body(axum::body::Body::from(buf))
+            .unwrap()
+            .into_response())
+    }
+}
+
+// ===== リモートコントロール =====
+
+/// 再生実績 (PlayReport) を DB に反映するヘルパ。
+fn apply_play_report(db: &crate::db::Database, report: Option<crate::audio::PlayReport>) {
+    let Some(r) = report else { return; };
+    let played_threshold = if r.duration_ms > 0 { (r.duration_ms / 2).min(240_000) } else { 240_000 };
+    if r.played_ms >= played_threshold {
+        let _ = db.mark_played(r.track_id);
+    } else if r.played_ms >= 4_000 {
+        let _ = db.mark_skipped(r.track_id);
+    }
+}
+
+/// track_id で曲を再生するヘルパ (remote_play / remote_next / remote_prev から呼ぶ)。
+fn play_by_id_for_remote(state: &ApiState, app: &tauri::AppHandle, track_id: i64) -> Result<(), ApiError> {
+    let db = state.db()?;
+    let track = db.get_track_by_track_id(track_id)
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| ApiError::not_found("track not found"))?;
+    let path = track.location_path.as_deref().unwrap_or("");
+    if path.is_empty() {
+        return Err(ApiError::new(StatusCode::NOT_FOUND, "no file path"));
+    }
+    let duration = track.total_time_ms.unwrap_or(0) as u64;
+    let gain_db = db.get_analysis(track_id).ok().flatten().and_then(|a| a.replaygain_db);
+    let player = app.state::<std::sync::Mutex<crate::audio::AudioPlayer>>();
+    let report = player.lock()
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .play(path, track_id, duration, gain_db)
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    apply_play_report(&db, report);
+    let _ = db.add_recent_track(track_id);
+    Ok(())
+}
+
+/// `GET /api/remote/state` — 現在の再生状態を返す。
+pub async fn remote_get_state(State(state): State<ApiState>) -> Result<Json<crate::models::PlaybackState>, ApiError> {
+    let app = state.app.as_ref().ok_or_else(|| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "no app handle"))?;
+    let player = app.state::<std::sync::Mutex<crate::audio::AudioPlayer>>();
+    let ps = player.lock()
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .get_state();
+    Ok(Json(ps))
+}
+
+/// `POST /api/remote/play` のボディ。
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemotePlayBody {
+    pub track_id: i64,
+}
+
+/// `POST /api/remote/play` — 指定曲を再生する。
+pub async fn remote_play(
+    State(state): State<ApiState>,
+    ExtractJson(body): ExtractJson<RemotePlayBody>,
+) -> Result<StatusCode, ApiError> {
+    let app = state.app.as_ref().ok_or_else(|| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "no app handle"))?;
+    let db = state.db()?;
+    let track = db.get_track_by_track_id(body.track_id)
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| ApiError::not_found("track not found"))?;
+    let path = track.location_path.as_deref().unwrap_or("");
+    if path.is_empty() {
+        return Err(ApiError::new(StatusCode::NOT_FOUND, "no file path for this track"));
+    }
+    let duration = track.total_time_ms.unwrap_or(0) as u64;
+    let gain_db = db.get_analysis(body.track_id).ok().flatten().and_then(|a| a.replaygain_db);
+    let player = app.state::<std::sync::Mutex<crate::audio::AudioPlayer>>();
+    let report = player.lock()
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .play(path, body.track_id, duration, gain_db)
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    apply_play_report(&db, report);
+    db.add_recent_track(body.track_id).map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    app.state::<crate::analyzer::Analyzer>().submit(vec![body.track_id], false);
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// `POST /api/remote/pause` — 一時停止する。
+pub async fn remote_pause(State(state): State<ApiState>) -> Result<StatusCode, ApiError> {
+    let app = state.app.as_ref().ok_or_else(|| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "no app handle"))?;
+    app.state::<std::sync::Mutex<crate::audio::AudioPlayer>>()
+        .lock()
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .pause();
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// `POST /api/remote/resume` — 再生を再開する。
+pub async fn remote_resume(State(state): State<ApiState>) -> Result<StatusCode, ApiError> {
+    let app = state.app.as_ref().ok_or_else(|| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "no app handle"))?;
+    app.state::<std::sync::Mutex<crate::audio::AudioPlayer>>()
+        .lock()
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .resume();
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// `POST /api/remote/stop` — 再生を停止する。
+pub async fn remote_stop(State(state): State<ApiState>) -> Result<StatusCode, ApiError> {
+    let app = state.app.as_ref().ok_or_else(|| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "no app handle"))?;
+    let player = app.state::<std::sync::Mutex<crate::audio::AudioPlayer>>();
+    let report = player.lock()
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .stop();
+    let db = state.db()?;
+    apply_play_report(&db, report);
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// `POST /api/remote/next` — キューの次の曲へ進む。
+pub async fn remote_next(State(state): State<ApiState>) -> Result<Json<Value>, ApiError> {
+    let app = state.app.as_ref().ok_or_else(|| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "no app handle"))?;
+    let player_state = app.state::<std::sync::Mutex<crate::audio::AudioPlayer>>();
+    let next_id = player_state.lock()
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .advance_next(false);
+    if let Some(tid) = next_id {
+        play_by_id_for_remote(&state, app, tid)?;
+        Ok(Json(json!({ "trackId": tid })))
+    } else {
+        let report = player_state.lock()
+            .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+            .stop();
+        let db = state.db()?;
+        apply_play_report(&db, report);
+        Ok(Json(json!({ "trackId": Value::Null })))
+    }
+}
+
+/// `POST /api/remote/prev` — キューの前の曲へ戻る。
+pub async fn remote_prev(State(state): State<ApiState>) -> Result<Json<Value>, ApiError> {
+    let app = state.app.as_ref().ok_or_else(|| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "no app handle"))?;
+    let player_state = app.state::<std::sync::Mutex<crate::audio::AudioPlayer>>();
+    let prev_id = player_state.lock()
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .advance_prev();
+    if let Some(tid) = prev_id {
+        play_by_id_for_remote(&state, app, tid)?;
+        Ok(Json(json!({ "trackId": tid })))
+    } else {
+        Ok(Json(json!({ "trackId": Value::Null })))
+    }
+}
+
+/// `POST /api/remote/seek` のボディ。
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteSeekBody {
+    pub position_ms: u64,
+}
+
+/// `POST /api/remote/seek` — 指定位置にシークする。
+pub async fn remote_seek(
+    State(state): State<ApiState>,
+    ExtractJson(body): ExtractJson<RemoteSeekBody>,
+) -> Result<StatusCode, ApiError> {
+    let app = state.app.as_ref().ok_or_else(|| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "no app handle"))?;
+    app.state::<std::sync::Mutex<crate::audio::AudioPlayer>>()
+        .lock()
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .seek(body.position_ms);
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// `POST /api/remote/set-queue` のボディ。
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteSetQueueBody {
+    pub track_ids: Vec<i64>,
+    pub start_index: Option<usize>,
+}
+
+/// `POST /api/remote/set-queue` — 再生キューを設定する。
+pub async fn remote_set_queue(
+    State(state): State<ApiState>,
+    ExtractJson(body): ExtractJson<RemoteSetQueueBody>,
+) -> Result<StatusCode, ApiError> {
+    let app = state.app.as_ref().ok_or_else(|| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "no app handle"))?;
+    app.state::<std::sync::Mutex<crate::audio::AudioPlayer>>()
+        .lock()
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .set_queue(body.track_ids, body.start_index.unwrap_or(0));
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// `PATCH /api/tracks/:trackId` — 指定フィールドを置換 (未指定は据え置き)、
