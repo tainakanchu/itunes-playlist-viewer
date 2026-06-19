@@ -10,45 +10,27 @@ Each release is documented in both Japanese and English.
 
 ## [Unreleased]
 
-## [v0.7.0-2] - 2026-06-20
+## [v0.7.0] - 2026-06-20
 
 ### 日本語
 
-**実機テスト用プレリリース（alpha 相当）**。GitHub prerelease＝アプリ内アップデータには非配信。前回 alpha（v0.7.0-1）の Web プレイヤーを強化:
+#### 追加
+- **LAN ストリーミング + Web プレイヤー + デスクトップ遠隔操作**：「LAN 公開」を有効にすると、同じ Wi-Fi のスマホ/TV/PC のブラウザからライブラリを再生できます（接続URL＋**QR コード**を設定に表示）。曲一覧・検索・プレイリスト・ジャンル/年代絞り込み・**アートワーク**・**Up Next**・**似た曲**に対応し、「この端末で再生」と「PCで再生（リモコン）」を切替できます。**iOS は「ホーム画面に追加」で全画面アプリ化（PWA）**。読み取り専用＋トークン必須で、書き込みはローカルのみ。(#53)
+- **表示フォントの選択 + CJK フォント統一**：OS のインストール済みフォントから表示フォントを選べます。さらに **Noto Sans CJK** をダウンロードすると、簡体字・繁体字・日本語が1フォントに統一されます（外部ダウンロード方式で本体は軽量なまま）。(#51)
+- **整理先フォルダの自動検出**：設定の「自動検出」で、既存の曲のパスから整理先（ライブラリルート）を推定して設定できます。
 
-#### 追加（テスト対象）
-- **アートワーク表示**（再生バーにジャケット）/ **ジャンル・年代・レートで絞り込み** / **Up Next（次に流れる曲）表示** / **似た曲から広げる**。
-- **プレイリストを見つけやすく**：モバイルは画面下部タブバー（曲 / プレイリスト / ジャンル）に再構成。
-- **PWA 対応（iOS）**：ホーム画面に追加で全画面アプリ化（manifest・アイコン・apple メタ）。トークンは端末に保持され、起動し直しても認証が続きます。
-- **接続が分かりやすく**：設定に**おすすめ接続先＋QR コード**を表示（QR をスマホで読むだけ）。余分な IP は折りたたみ。
-
-### English
-
-**Pre-release (alpha) for on-device testing.** GitHub prerelease (not delivered via the in-app updater). Enhances the web player from v0.7.0-1:
-
-#### Added (under test)
-- Artwork in the player bar; filter by genre/decade/rating; Up Next queue; "similar tracks" jump.
-- Playlists made discoverable via a mobile bottom tab bar (Songs / Playlists / Genres).
-- PWA (iOS): add-to-home-screen full-screen app; token persisted on device.
-- Settings now show a recommended connection URL + **QR code**; extra IPs collapsed.
-
-## [v0.7.0-1] - 2026-06-19
-
-### 日本語
-
-**実機テスト用のプレリリース（alpha 相当）**です。MSI のバージョン制約（プレリリース識別子は数値のみ）に合わせ `-1` を使っています。GitHub の prerelease として公開され、アプリ内アップデータには配信されません（Releases ページから手動で取得してください）。
-
-#### 追加（テスト対象）
-- **LAN ストリーミング + Web プレイヤー + デスクトップ遠隔操作**：「LAN 公開」を有効にすると、同じ Wi-Fi のスマホ/TV のブラウザから `http://<PCのIP>:8787/?token=…` でライブラリを再生できます。「この端末で再生」/「PCで再生（リモコン）」を切替可能。トークン必須・読み取り専用。(#53)
-- **フォント設定 + Noto CJK フォールバック**：表示フォントを選べ、Noto Sans CJK をダウンロードすると簡体字/繁体字/日本語が1フォントに統一されます。(#51)
+#### 修正
+- iOS のホーム画面 PWA で認証トークンが失われる問題、Noto CJK フォントで簡体字が太く表示される問題を修正。
 
 ### English
 
-**Pre-release (alpha) for on-device testing.** Published as a GitHub prerelease and NOT delivered via the in-app updater (grab it from the Releases page).
+#### Added
+- **LAN streaming + web player + desktop remote control**: enable "LAN 公開" to play your library from a phone/TV/PC browser on the same Wi-Fi (connection URL + **QR code** shown in Settings). Browse tracks/playlists/genres, search, filter by decade, see **artwork** / **Up Next** / **similar tracks**, and switch between "play on this device" and "play on the PC (remote)". **iOS supports Add-to-Home-Screen (PWA)**. Read-only + token-required; writes stay local. (#53)
+- **Choose the UI font + unify CJK rendering**: pick from installed OS fonts; download **Noto Sans CJK** to render Simplified/Traditional Chinese and Japanese in one consistent font (fetched on demand to keep the app lean). (#51)
+- **Auto-detect the organize root**: a "Detect" button infers the library root folder from your existing tracks' paths.
 
-#### Added (under test)
-- **LAN streaming + web player + desktop remote control**: enable "LAN 公開" to play your library from a phone/TV browser on the same Wi-Fi. (#53)
-- **Font settings + Noto CJK fallback**: choose the UI font and unify CJK rendering. (#51)
+#### Fixed
+- iOS home-screen PWA losing the auth token; Simplified Chinese rendering too bold with the Noto CJK font.
 
 ## [v0.6.4] - 2026-06-19
 

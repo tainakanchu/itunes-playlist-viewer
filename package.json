@@ -1,6 +1,6 @@
 {
   "name": "crateforge",
-  "version": "0.7.0-2",
+  "version": "0.7.0",
   "license": "MIT",
   "private": true,
   "type": "module",
