@@ -16,7 +16,7 @@ import type { CjkFontStatus } from "../api/fonts";
 import { Icon } from "./Icon";
 import { LicenseList } from "./LicenseList";
 
-const REPO_URL = "https://github.com/tainakanchu/itunes-playlist-viewer";
+const REPO_URL = "https://github.com/tainakanchu/crateforge";
 
 type Section = "general" | "fonts" | "ffmpeg" | "api" | "updates" | "about";
 

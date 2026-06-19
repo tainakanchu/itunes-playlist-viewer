@@ -1,6 +1,6 @@
 ---
 name: release
-description: Cut a new release of itunes-playlist-viewer. Use when the user says "release", "新しいバージョンを切る", "新しいリリースを作る", "v0.x.y をリリース", "リリースして", or anything that maps to "bump the version + write changelog + tag".
+description: Cut a new release of crateforge. Use when the user says "release", "新しいバージョンを切る", "新しいリリースを作る", "v0.x.y をリリース", "リリースして", or anything that maps to "bump the version + write changelog + tag".
 ---
 
 # Release Skill
@@ -44,7 +44,7 @@ git tag --sort=-version:refname | head -5   # Latest tags
    - `src-tauri/Cargo.toml` → `[package] version`
    - `src-tauri/tauri.conf.json` → `version`
 
-3. Run `cargo update -p itunes-playlist-viewer --offline` is NOT needed; `cargo` picks up the new version from `Cargo.toml` automatically. But the lockfile changes — run `nix develop --command bash -c "cd src-tauri && cargo check"` once to update `Cargo.lock` so the lockfile in the repo matches the new version.
+3. Run `cargo update -p crateforge --offline` is NOT needed; `cargo` picks up the new version from `Cargo.toml` automatically. But the lockfile changes — run `nix develop --command bash -c "cd src-tauri && cargo check"` once to update `Cargo.lock` so the lockfile in the repo matches the new version.
 
 4. **dj-curator プラグインが前回タグ以降に変更されていれば、その version も上げる**
    （アプリ本体とは独立した SemVer。プラグインは marketplace から個別配信されるため、機能追加なら minor、修正なら patch）:
@@ -127,8 +127,8 @@ will not show up immediately — it intentionally waits for the builds so the in
 never sees a release without the Windows exe / portable zip.
 
 ```
-gh run watch --repo tainakanchu/itunes-playlist-viewer
-gh release view vX.Y.Z --repo tainakanchu/itunes-playlist-viewer
+gh run watch --repo tainakanchu/crateforge
+gh release view vX.Y.Z --repo tainakanchu/crateforge
 ```
 
 Report the release URL back to the user.

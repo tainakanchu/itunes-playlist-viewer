@@ -7,7 +7,7 @@
 use serde::Serialize;
 
 const RELEASES_API: &str =
-    "https://api.github.com/repos/tainakanchu/itunes-playlist-viewer/releases/latest";
+    "https://api.github.com/repos/tainakanchu/crateforge/releases/latest";
 const USER_AGENT: &str = concat!(
     "Crateforge/",
     env!("CARGO_PKG_VERSION"),
