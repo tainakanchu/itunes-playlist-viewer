@@ -34,9 +34,9 @@ const config: ExpoConfig = {
   android: {
     package: "com.tainakanchu.crateforge",
     adaptiveIcon: {
+      // 背景は単色（teal-dark）、前景は Crateforge のダイヤモンドマーク。
       backgroundColor: "#0E1416",
       foregroundImage: "./assets/images/android-icon-foreground.png",
-      backgroundImage: "./assets/images/android-icon-background.png",
       monochromeImage: "./assets/images/android-icon-monochrome.png",
     },
     predictiveBackGestureEnabled: false,
