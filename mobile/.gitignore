@@ -17,6 +17,8 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+# EAS local credentials (keystore paths + passwords) — never commit
+credentials.json
 
 # Metro
 .metro-health-check*
