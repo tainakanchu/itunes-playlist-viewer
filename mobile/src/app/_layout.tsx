@@ -5,11 +5,13 @@
 import { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 
 import { PALETTE } from "@/constants/brand";
+import { createFilePersister } from "@/lib/queryPersister";
 import { useConnection } from "@/store/connection";
 import { usePlayer } from "@/store/player";
 import { createAudioEngine, initPlayback } from "@/features/playback/engine";
@@ -27,6 +29,9 @@ const queryClient = new QueryClient({
   },
 });
 
+// アプリ再起動後も即座に前回キャッシュを表示するためのディスク永続化設定。
+const persister = createFilePersister();
+
 export default function RootLayout() {
   useEffect(() => {
     void useConnection.getState().hydrate();
@@ -37,7 +42,18 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <QueryClientProvider client={queryClient}>
+        <PersistQueryClientProvider
+          client={queryClient}
+          persistOptions={{
+            persister,
+            maxAge: 24 * 60 * 60 * 1000, // 24時間でディスクキャッシュ破棄
+            buster: "v1", // 破壊的変更時にここを変えてキャッシュを無効化
+            dehydrateOptions: {
+              // 成功クエリのみ永続化（loading/error は保存しない）
+              shouldDehydrateQuery: (q) => q.state.status === "success",
+            },
+          }}
+        >
           <StatusBar style="light" />
           <Gate />
           <Stack
@@ -50,7 +66,7 @@ export default function RootLayout() {
             <Stack.Screen name="connect" />
             <Stack.Screen name="player" options={{ presentation: "modal" }} />
           </Stack>
-        </QueryClientProvider>
+        </PersistQueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
