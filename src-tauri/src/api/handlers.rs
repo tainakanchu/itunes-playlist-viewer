@@ -19,6 +19,7 @@ use tauri::Manager;
 use super::error::ApiError;
 use super::ApiState;
 use crate::analyzer::similarity::{rank_similar, SimilarOpts};
+use crate::db::tracks::AlbumInfo;
 use crate::models::{GenreTagCount, LibraryStats, Playlist, SimilarHit, Track, TrackAnalysis};
 
 /// `get_tracks` / `search_tracks` は `limit: i64` を直値で要求する。
@@ -238,6 +239,11 @@ pub async fn get_genres(
 ) -> Result<Json<Vec<GenreTagCount>>, ApiError> {
     let db = state.db()?;
     Ok(Json(db.get_all_genre_tags()?))
+}
+
+/// `GET /api/albums` — distinct なアルバム一覧 (album 名昇順)。
+pub async fn get_albums(State(state): State<ApiState>) -> Result<Json<Vec<AlbumInfo>>, ApiError> {
+    Ok(Json(state.db()?.get_albums()?))
 }
 
 /// `GET /api/playlists` — 全プレイリスト。

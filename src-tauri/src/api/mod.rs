@@ -212,6 +212,7 @@ pub fn router(state: ApiState) -> Router {
         )
         .route("/api/stats", get(handlers::get_stats))
         .route("/api/genres", get(handlers::get_genres))
+        .route("/api/albums", get(handlers::get_albums))
         .route("/api/playlists", get(handlers::list_playlists))
         .route("/api/playlists/{playlistId}", get(handlers::get_playlist))
         .route(
@@ -624,6 +625,24 @@ mod tests {
         assert!(!arr.is_empty());
         let tags: Vec<&str> = arr.iter().map(|g| g["tag"].as_str().unwrap()).collect();
         assert!(tags.contains(&"House"));
+    }
+
+    // ===== ケース: albums (distinct アルバム一覧) =====
+    #[tokio::test]
+    async fn case_albums() {
+        let (_dir, app) = setup();
+        let (status, body) = req(app, "GET", "/api/albums", None).await;
+        assert_eq!(status, StatusCode::OK);
+        let arr = body.as_array().unwrap();
+        // seed の 5 曲はすべて別 album → distinct 5 件。
+        assert_eq!(arr.len(), 5);
+        // album 名 (NOCASE) 昇順: Bright, Dawn, Day, Dusk, Night。
+        let albums: Vec<&str> = arr.iter().map(|a| a["album"].as_str().unwrap()).collect();
+        assert_eq!(albums, vec!["Bright", "Dawn", "Day", "Dusk", "Night"]);
+        // 各アルバム 1 曲。sampleTrackId / trackCount のキー (camelCase) が出ること。
+        let dawn = arr.iter().find(|a| a["album"] == "Dawn").unwrap();
+        assert_eq!(dawn["trackCount"], 1);
+        assert_eq!(dawn["sampleTrackId"], 1);
     }
 
     // ===== ケース 12: playlists =====
