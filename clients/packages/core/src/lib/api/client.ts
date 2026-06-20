@@ -10,6 +10,8 @@ import type {
   GenreTagCount,
   Health,
   LibraryStats,
+  PairPollResponse,
+  PairStartResponse,
   PlaybackState,
   Playlist,
   PlaylistDetail,
@@ -197,6 +199,23 @@ export class ApiClient {
         : { fmt: "aac", br: quality === "aac256" ? 256 : quality === "aac192" ? 192 : 128 };
     if (this.token) params.token = this.token;
     return this.baseUrl + `/api/tracks/${trackId}/stream` + buildQuery(params);
+  }
+
+  // ---- ペアリング（公開エンドポイント; token 不要）----
+  /**
+   * ペアリングセッションを開始する。トークン不要（公開エンドポイント）。
+   * レスポンスの code をユーザーが手動でデスクトップ側の "端末を承認" 画面に入力する。
+   */
+  pairStart(): Promise<PairStartResponse> {
+    return this.post<PairStartResponse>("/api/pair/start");
+  }
+
+  /**
+   * ペアリングの承認状態をポーリングする。トークン不要（公開エンドポイント）。
+   * status が "approved" になると token が含まれる。"expired" で再試行が必要。
+   */
+  pairPoll(session: string): Promise<PairPollResponse> {
+    return this.get<PairPollResponse>("/api/pair/poll", { session });
   }
 
   // ---- リモート操作（デスクトップ側を操作）----

@@ -168,3 +168,15 @@ export interface PlaylistTracksQuery {
   sort?: string;
   order?: string;
 }
+
+/** `POST /api/pair/start` のレスポンス。 */
+export interface PairStartResponse {
+  session: string;
+  code: string;
+}
+
+/** `GET /api/pair/poll?session=<id>` のレスポンス。 */
+export interface PairPollResponse {
+  status: "pending" | "approved" | "expired";
+  token?: string;
+}
