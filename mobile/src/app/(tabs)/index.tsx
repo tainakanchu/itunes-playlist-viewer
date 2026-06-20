@@ -1,8 +1,9 @@
 // Library 画面。検索 + ジャンルチップで曲を絞り込み、タップで「現在のリストを
-// キューにして」その位置から再生する。プレイリストへの入口も上部に置く。
+// キューにして」その位置から再生する。各行に単曲ダウンロード、長押しで
+// 「次に再生 / アルバムを保存」を選べる。プレイリストは専用タブへ移した。
 
 import { useEffect, useRef, useState } from "react";
-import { FlatList, TextInput, View, StyleSheet } from "react-native";
+import { Alert, FlatList, TextInput, View, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
@@ -11,12 +12,13 @@ import { PALETTE } from "@/constants/brand";
 import Screen from "@/components/Screen";
 import TrackRow from "@/components/TrackRow";
 import IconButton from "@/components/IconButton";
+import DownloadButton from "@/components/DownloadButton";
 import { Loading, ErrorView, EmptyView } from "@/components/StateViews";
 import { useConnection } from "@/store/connection";
 import { usePlayer } from "@/store/player";
+import { useDownloads } from "@/store/downloads";
 import { useTracks, useGenres } from "@/features/browse/hooks";
 import GenreChips from "@/features/browse/GenreChips";
-import PlaylistsBar from "@/features/browse/PlaylistsBar";
 
 export default function LibraryScreen() {
   const router = useRouter();
@@ -46,6 +48,21 @@ export default function LibraryScreen() {
   const onPressTrack = (index: number) => {
     usePlayer.getState().setQueue(tracks, index);
     router.push("/player");
+  };
+
+  // 長押しで曲ごとのアクションを選ぶ。
+  const onLongPressTrack = (track: Track) => {
+    const buttons: Parameters<typeof Alert.alert>[2] = [
+      { text: "次に再生", onPress: () => usePlayer.getState().enqueueNext(track) },
+    ];
+    if (track.album) {
+      buttons.push({
+        text: "アルバムを保存",
+        onPress: () => void useDownloads.getState().downloadAlbum(track.album!),
+      });
+    }
+    buttons.push({ text: "キャンセル", style: "cancel" });
+    Alert.alert(track.name || "この曲", undefined, buttons);
   };
 
   if (!client) {
@@ -88,13 +105,13 @@ export default function LibraryScreen() {
         ref={listRef}
         data={tracks}
         keyExtractor={(t) => String(t.trackId)}
-        ListHeaderComponent={<PlaylistsBar onOpen={(p) => router.push(`/playlist/${p.playlistId}`)} />}
         renderItem={({ item, index }) => (
           <TrackRow
             track={item}
             active={currentTrackId === item.trackId}
             onPress={() => onPressTrack(index)}
-            onLongPress={() => usePlayer.getState().enqueueNext(item)}
+            onLongPress={() => onLongPressTrack(item)}
+            trailing={<DownloadButton track={item} />}
           />
         )}
         ListEmptyComponent={

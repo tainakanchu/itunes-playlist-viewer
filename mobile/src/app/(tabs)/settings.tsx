@@ -2,15 +2,20 @@
 // 再接続・切断を行う。接続中ならサーバー/ライブラリ情報も表示する。
 
 import type { ReactNode } from "react";
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { Pressable, ScrollView, Text, View, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import Screen from "@/components/Screen";
+import QualityPicker from "@/features/offline/QualityPicker";
+import { formatBytes } from "@/features/offline/format";
 import { BRAND, PALETTE } from "@/constants/brand";
 import { formatDuration } from "@/lib/format";
 import { useConnection } from "@/store/connection";
+import { useDownloads } from "@/store/downloads";
+import { useSettings } from "@/store/settings";
 
 /** トークンを先頭/末尾だけ残してマスクする。 */
 function maskToken(token: string | null): string {
@@ -36,6 +41,22 @@ export default function SettingsScreen() {
 
   const connected = status === "connected";
   const connecting = status === "connecting";
+
+  // オフライン関連ストア。
+  const downloadQuality = useSettings((s) => s.downloadQuality);
+  const setDownloadQuality = useSettings((s) => s.setDownloadQuality);
+  const downloadEntries = useDownloads((s) => s.entries);
+  const downloadCount = Object.keys(downloadEntries).length;
+  const downloadBytes = Object.values(downloadEntries).reduce(
+    (sum, e) => sum + (e.bytes || 0),
+    0,
+  );
+
+  // 永続化された設定/ダウンロード一覧を初回マウントで復元（冪等）。
+  useEffect(() => {
+    void useSettings.getState().hydrate();
+    void useDownloads.getState().hydrate();
+  }, []);
 
   const health = useQuery({
     queryKey: ["health", baseUrl],
@@ -151,6 +172,28 @@ export default function SettingsScreen() {
             </Row>
           </View>
         ) : null}
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>オフライン</Text>
+
+          <Text style={styles.fieldLabel}>ダウンロード品質</Text>
+          <QualityPicker value={downloadQuality} onChange={setDownloadQuality} />
+
+          <Pressable
+            onPress={() => router.push("/downloads")}
+            accessibilityRole="button"
+            accessibilityLabel="ダウンロード管理"
+            style={({ pressed }) => [styles.navRow, pressed && styles.pressed]}
+          >
+            <View>
+              <Text style={styles.navLabel}>ダウンロード管理</Text>
+              <Text style={styles.navSub}>
+                {downloadCount}曲 ・ {formatBytes(downloadBytes)}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={PALETTE.textDim} />
+          </Pressable>
+        </View>
       </ScrollView>
     </Screen>
   );
@@ -261,5 +304,30 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.7,
+  },
+  fieldLabel: {
+    color: PALETTE.textDim,
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  navRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: PALETTE.surfaceAlt,
+  },
+  navLabel: {
+    color: PALETTE.text,
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  navSub: {
+    color: PALETTE.textDim,
+    fontSize: 13,
+    marginTop: 2,
   },
 });

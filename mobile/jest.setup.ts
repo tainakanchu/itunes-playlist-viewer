@@ -54,6 +54,54 @@ jest.mock("expo-audio", () => {
   };
 });
 
+// --- expo-file-system (new File/Directory/Paths API) ---
+jest.mock("expo-file-system", () => {
+  class MockFile {
+    uri: string;
+    exists = false;
+    size = 0;
+    constructor(...parts: unknown[]) {
+      this.uri =
+        "file:///mock/" +
+        parts
+          .map((p) => (typeof p === "string" ? p : ((p as { uri?: string })?.uri ?? "")))
+          .join("/");
+    }
+    create() {}
+    delete() {
+      this.exists = false;
+    }
+    text() {
+      return Promise.resolve("");
+    }
+    write() {}
+  }
+  class MockDirectory {
+    uri: string;
+    exists = true;
+    constructor(...parts: unknown[]) {
+      this.uri = "file:///mock/" + parts.map((p) => String(p)).join("/");
+    }
+    create() {}
+    list() {
+      return [] as unknown[];
+    }
+  }
+  return {
+    File: Object.assign(MockFile, {
+      downloadFileAsync: jest.fn(async () => {
+        const f = new MockFile("downloaded");
+        f.exists = true;
+        f.size = 1024;
+        return f;
+      }),
+      createDownloadTask: jest.fn(() => ({ start: jest.fn(async () => undefined) })),
+    }),
+    Directory: MockDirectory,
+    Paths: { document: new MockDirectory("document"), cache: new MockDirectory("cache") },
+  };
+});
+
 // --- expo-camera ---
 jest.mock("expo-camera", () => {
   const React = require("react");

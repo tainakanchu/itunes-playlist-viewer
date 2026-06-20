@@ -1,4 +1,4 @@
-// タブナビ。Library / Remote / Settings の 3 タブ。
+// タブナビ。Library / Playlists / Remote / Settings の 4 タブ。
 // ミニプレイヤーはタブバーの上に重ねて常時表示する（兄弟として配置）。
 
 import { View } from "react-native";
@@ -28,6 +28,15 @@ export default function TabsLayout() {
             title: "Library",
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="library" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="playlists"
+          options={{
+            title: "Playlists",
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="list" size={size} color={color} />
             ),
           }}
         />

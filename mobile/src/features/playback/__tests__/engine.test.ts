@@ -122,8 +122,10 @@ describe("ExpoAudioEngine", () => {
     const track = makeTrack();
     engine.load(track);
 
-    // CRITICAL: trackId で解決していること。
-    expect(mockAudio.player.replace).toHaveBeenCalledWith(client.streamSource(555));
+    // CRITICAL: trackId で解決していること。オフライン未保存なら native ストリームを使う。
+    expect(mockAudio.player.replace).toHaveBeenCalledWith(
+      client.streamSource(555, { native: true }),
+    );
     expect(mockAudio.player.setActiveForLockScreen).toHaveBeenCalledWith(true, {
       title: "Test Song",
       artist: "Test Artist",

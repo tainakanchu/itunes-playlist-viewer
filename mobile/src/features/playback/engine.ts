@@ -14,6 +14,7 @@ import {
 import type { AudioEngine, EngineHandlers } from "@/store/player";
 import type { Track } from "@/lib/types";
 import { useConnection } from "@/store/connection";
+import { useDownloads } from "@/store/downloads";
 import { trackTitle, trackArtist } from "@/lib/format";
 
 /** expo-audio を用いた AudioEngine 実装。プレイヤーは 1 個だけ生成して使い回す。 */
@@ -36,7 +37,10 @@ export class ExpoAudioEngine implements AudioEngine {
     const client = useConnection.getState().client;
     if (!client) return;
     // CRITICAL: メディアは track.trackId（iTunes trackId）で解決する。
-    this.player.replace(client.streamSource(track.trackId));
+    // オフライン保存済みならローカルファイルを優先し、無ければ LAN ストリーム（native=1）。
+    const local = useDownloads.getState().getLocalUri(track.trackId);
+    if (local) this.player.replace({ uri: local });
+    else this.player.replace(client.streamSource(track.trackId, { native: true }));
     // ロック画面メタを設定（artwork は token 付き URL）。
     this.player.setActiveForLockScreen(true, {
       title: trackTitle(track),

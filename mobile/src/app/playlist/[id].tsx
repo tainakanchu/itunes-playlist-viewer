@@ -1,5 +1,5 @@
-// Playlist 詳細。プレイリスト内の曲を一覧し、タップでその位置から
-// プレイリスト全体をキューにして再生する。
+// Playlist 詳細。プレイリスト名 + 曲数 + 一括ダウンロードのヘッダを出し、
+// 曲を一覧する。タップでその位置からプレイリスト全体をキューにして再生する。
 
 import { FlatList, Text, View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -8,19 +8,23 @@ import type { Track } from "@/lib/types";
 import { PALETTE } from "@/constants/brand";
 import Screen from "@/components/Screen";
 import TrackRow from "@/components/TrackRow";
+import DownloadButton from "@/components/DownloadButton";
 import { Loading, ErrorView, EmptyView } from "@/components/StateViews";
 import { useConnection } from "@/store/connection";
 import { usePlayer } from "@/store/player";
-import { usePlaylistTracks } from "@/features/browse/hooks";
+import { usePlaylist, usePlaylistTracks } from "@/features/browse/hooks";
 
 export default function PlaylistScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const playlistId = Number(id);
   const client = useConnection((s) => s.client);
+  const detailQuery = usePlaylist(playlistId);
   const query = usePlaylistTracks(playlistId);
   const tracks = query.data ?? [];
   const currentTrackId = usePlayer((s) => s.current()?.trackId ?? null);
+
+  const title = detailQuery.data?.name ?? "プレイリスト";
 
   const onPressTrack = (index: number) => {
     usePlayer.getState().setQueue(tracks, index);
@@ -30,9 +34,16 @@ export default function PlaylistScreen() {
   return (
     <Screen edges={["top"]}>
       <View style={styles.header}>
-        <Text style={styles.title}>プレイリスト</Text>
+        <View style={styles.headerText}>
+          <Text style={styles.title} numberOfLines={2}>
+            {title}
+          </Text>
+          {tracks.length > 0 ? (
+            <Text style={styles.count}>{tracks.length}曲</Text>
+          ) : null}
+        </View>
         {tracks.length > 0 ? (
-          <Text style={styles.count}>{tracks.length}曲</Text>
+          <DownloadButton tracks={tracks} label="ダウンロード" />
         ) : null}
       </View>
 
@@ -55,6 +66,7 @@ export default function PlaylistScreen() {
               active={currentTrackId === item.trackId}
               onPress={() => onPressTrack(index)}
               onLongPress={() => usePlayer.getState().enqueueNext(item)}
+              trailing={<DownloadButton track={item} />}
             />
           )}
           contentContainerStyle={styles.listContent}
@@ -71,11 +83,16 @@ function errorText(e: unknown): string {
 const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
-    alignItems: "baseline",
+    alignItems: "center",
     justifyContent: "space-between",
+    gap: 12,
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 12,
+  },
+  headerText: {
+    flex: 1,
+    minWidth: 0,
   },
   title: {
     color: PALETTE.text,
@@ -85,6 +102,7 @@ const styles = StyleSheet.create({
   count: {
     color: PALETTE.textFaint,
     fontSize: 13,
+    marginTop: 2,
   },
   listContent: {
     paddingBottom: 96,

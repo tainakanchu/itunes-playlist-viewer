@@ -104,6 +104,8 @@ export interface TracksQuery {
   ratingMax?: number;
   /** genre 部分一致（小文字比較）。 */
   genre?: string;
+  /** album 部分一致（小文字比較）。 */
+  album?: string;
   yearFrom?: number;
   yearTo?: number;
   /** true=解析済みのみ / false=未解析のみ。 */
@@ -114,6 +116,22 @@ export interface TracksQuery {
   sort?: string;
   /** asc / desc。 */
   order?: string;
+}
+
+/** オフラインダウンロードの音質。`original` は無変換、それ以外は AAC への再エンコード。 */
+export type DownloadQuality = "original" | "aac256" | "aac192" | "aac128";
+
+/** ダウンロード済み 1 曲のメタ（index.json に永続化される）。 */
+export interface DownloadEntry {
+  trackId: number;
+  track: Track;
+  /** 端末ローカルの file:// URI。 */
+  localUri: string;
+  quality: DownloadQuality;
+  /** ファイルサイズ（bytes）。取得不能なら 0。 */
+  bytes: number;
+  /** ダウンロード時刻（epoch ms）。 */
+  createdAt: number;
 }
 
 /** `GET /api/tracks/{id}/similar` のクエリ。 */

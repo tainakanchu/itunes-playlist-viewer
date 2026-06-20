@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import type {
   GenreTagCount,
   Playlist,
+  PlaylistDetail,
   SimilarHit,
   Track,
   TracksQuery,
@@ -40,6 +41,16 @@ export function usePlaylists() {
     queryKey: ["playlists"],
     enabled: !!client,
     queryFn: () => client!.playlists(),
+  });
+}
+
+/** プレイリスト単体の情報（詳細ヘッダの名前など）。 */
+export function usePlaylist(playlistId: number) {
+  const client = useConnection((s) => s.client);
+  return useQuery<PlaylistDetail>({
+    queryKey: ["playlist", playlistId],
+    enabled: !!client && Number.isFinite(playlistId),
+    queryFn: () => client!.playlist(playlistId),
   });
 }
 

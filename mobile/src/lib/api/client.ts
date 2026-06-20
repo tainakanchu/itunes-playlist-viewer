@@ -5,6 +5,7 @@
 // React Native の URL/searchParams 実装は不完全なので、クエリ文字列は手組みする。
 
 import type {
+  DownloadQuality,
   GenreTagCount,
   Health,
   LibraryStats,
@@ -167,8 +168,31 @@ export class ApiClient {
   artworkSource(trackId: number): MediaSource {
     return this.mediaSource(`/api/tracks/${trackId}/artwork`);
   }
-  streamSource(trackId: number): MediaSource {
-    return this.mediaSource(`/api/tracks/${trackId}/stream`);
+  /**
+   * 再生用ストリーム source（ヘッダ認証つき）。
+   * opts.native=true で `?native=1` を付け、端末再生可能な形式は無変換、不可なら AAC で配信させる。
+   */
+  streamSource(trackId: number, opts?: { native?: boolean }): MediaSource {
+    const query = buildQuery(opts?.native ? { native: 1 } : {});
+    return {
+      uri: this.baseUrl + `/api/tracks/${trackId}/stream` + query,
+      headers: this.token ? { "X-API-Token": this.token } : undefined,
+    };
+  }
+
+  /**
+   * オフライン保存用のダウンロード URL（token をクエリに載せた完全 URL）。
+   * expo-file-system の `File.downloadFileAsync` がカスタムヘッダ無しで使えるよう、認証はクエリで渡す。
+   * - original: 無変換の元バイト（`?original=1&native=1`）。
+   * - aacNNN: AAC へ再エンコード（`?fmt=aac&br=NNN`）。
+   */
+  downloadUrl(trackId: number, quality: DownloadQuality): string {
+    const params: Record<string, unknown> =
+      quality === "original"
+        ? { original: 1, native: 1 }
+        : { fmt: "aac", br: quality === "aac256" ? 256 : quality === "aac192" ? 192 : 128 };
+    if (this.token) params.token = this.token;
+    return this.baseUrl + `/api/tracks/${trackId}/stream` + buildQuery(params);
   }
 
   // ---- リモート操作（デスクトップ側を操作）----

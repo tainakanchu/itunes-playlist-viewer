@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { ApiClient } from "@/lib/api/client";
 import { useConnection } from "@/store/connection";
+import { useDownloads } from "@/store/downloads";
 import { resetPlayer } from "@/store/player";
 
 /** リトライ無し・キャッシュ無しの新しい QueryClient を持つラッパを返す。 */
@@ -56,7 +57,7 @@ export function mockFetch(...responses: MockResponse[]): jest.Mock {
   return fn;
 }
 
-/** プレイヤーと接続状態を初期化する（各テストの beforeEach 用）。 */
+/** プレイヤー・接続・ダウンロード状態を初期化する（各テストの beforeEach 用）。 */
 export function resetTestState(): void {
   resetPlayer();
   useConnection.setState({
@@ -66,4 +67,5 @@ export function resetTestState(): void {
     token: null,
     error: null,
   });
+  useDownloads.setState({ entries: {}, downloading: {} });
 }
