@@ -12,14 +12,17 @@ import {
   StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 
 import Screen from "@/components/Screen";
 import { BRAND, PALETTE } from "@/constants/brand";
-import { useConnection } from "@crateforge/core";
+import { useConnection, useDownloads } from "@crateforge/core";
 import QrScanner, { parseConnectionQr } from "@/features/connect/QrScanner";
 
 export default function ConnectScreen() {
   const status = useConnection((s) => s.status);
+  const router = useRouter();
+  const hasDownloads = useDownloads((s) => Object.keys(s.entries).length > 0);
   const error = useConnection((s) => s.error);
   const [url, setUrl] = useState("");
   const [token, setToken] = useState("");
@@ -121,6 +124,18 @@ export default function ConnectScreen() {
           <Ionicons name="qr-code-outline" size={20} color={PALETTE.accent} />
           <Text style={styles.secondaryText}>QR をスキャン</Text>
         </Pressable>
+
+        {hasDownloads ? (
+          <Pressable
+            onPress={() => router.replace("/")}
+            accessibilityRole="button"
+            accessibilityLabel="ダウンロード済みを再生（サーバーなし）"
+            style={({ pressed }) => [styles.offlineLink, pressed && styles.pressed]}
+          >
+            <Ionicons name="cloud-offline-outline" size={18} color={PALETTE.textDim} />
+            <Text style={styles.offlineLinkText}>ダウンロード済みを再生</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       <Modal
@@ -224,6 +239,19 @@ const styles = StyleSheet.create({
   secondaryText: {
     color: PALETTE.accent,
     fontSize: 15,
+    fontWeight: "600",
+  },
+  offlineLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 16,
+    paddingVertical: 12,
+  },
+  offlineLinkText: {
+    color: PALETTE.textDim,
+    fontSize: 14,
     fontWeight: "600",
   },
 });

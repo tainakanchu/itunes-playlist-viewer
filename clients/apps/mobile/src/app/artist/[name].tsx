@@ -5,7 +5,7 @@ import { FlatList, Pressable, Text, View, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { type Track, useConnection, usePlayer } from "@crateforge/core";
+import { type Track, useConnection, usePlayer, useSettings } from "@crateforge/core";
 import { BRAND, PALETTE } from "@/constants/brand";
 import Screen from "@/components/Screen";
 import TrackRow from "@/components/TrackRow";
@@ -18,7 +18,8 @@ export default function ArtistScreen() {
   const { name } = useLocalSearchParams<{ name: string }>();
   const artist = name ? decodeURIComponent(name) : "";
   const client = useConnection((s) => s.client);
-  const query = useArtistTracks(artist || null);
+  const artistGrouping = useSettings((s) => s.artistGrouping);
+  const query = useArtistTracks(artist || null, artistGrouping);
   const tracks = query.data ?? [];
   const currentTrackId = usePlayer((s) => s.current()?.trackId ?? null);
 

@@ -45,6 +45,11 @@ export function trackArtist(t: Pick<Track, "artist" | "albumArtist">): string {
   return t.artist || t.albumArtist || "Unknown Artist";
 }
 
+/** アルバムアーティスト名。無ければトラックのアーティスト、それも無ければ Unknown。 */
+export function trackAlbumArtist(t: Pick<Track, "artist" | "albumArtist">): string {
+  return t.albumArtist || t.artist || "Unknown Artist";
+}
+
 /** "Artist — Album" 形式のサブタイトル（欠損は片側のみ）。 */
 export function trackSubtitle(t: Pick<Track, "artist" | "albumArtist" | "album">): string {
   const artist = t.artist || t.albumArtist || "";

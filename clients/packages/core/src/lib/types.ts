@@ -131,6 +131,8 @@ export interface TracksQuery {
 
 export type TrackMetaField = "bpm" | "year" | "genre" | "rating" | "playCount";
 export type SortField = "name" | "artist" | "album" | "year" | "rating" | "playCount" | "bpm" | "dateAdded";
+/** アーティストモードの束ね方。"artist"=トラックのアーティスト / "albumArtist"=アルバムアーティスト。 */
+export type ArtistGrouping = "artist" | "albumArtist";
 export type SortOrder = "asc" | "desc";
 export interface TrackSort { field: SortField; order: SortOrder; }
 

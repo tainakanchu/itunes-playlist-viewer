@@ -9,7 +9,7 @@ import { Alert, FlatList, Pressable, Text, TextInput, View, StyleSheet } from "r
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
-import { type Album, type Artist, type SortField, type Track, useConnection, usePlayer, useDownloads, useSettings } from "@crateforge/core";
+import { type Album, type Artist, type ArtistGrouping, type SortField, type Track, useConnection, usePlayer, useDownloads, useSettings } from "@crateforge/core";
 import { BRAND, PALETTE } from "@/constants/brand";
 import Screen from "@/components/Screen";
 import TrackRow from "@/components/TrackRow";
@@ -57,6 +57,10 @@ export default function LibraryScreen() {
   const trackSort = useSettings((s) => s.trackSort);
   const setTrackSort = useSettings((s) => s.setTrackSort);
 
+  // アーティストモードの束ね方設定。
+  const artistGrouping = useSettings((s) => s.artistGrouping);
+  const setArtistGrouping = useSettings((s) => s.setArtistGrouping);
+
   // アクティブなモードだけ取得する（既定アルバム時に全曲フェッチしない＝重さ回避）。
   const tracksQuery = useTracks(
     {
@@ -70,7 +74,7 @@ export default function LibraryScreen() {
   );
   const genresQuery = useGenres();
   const albumsQuery = useAlbums(mode === "albums");
-  const artistsQuery = useArtists(mode === "artists");
+  const artistsQuery = useArtists(mode === "artists", artistGrouping);
 
   const tracks = tracksQuery.data ?? [];
   const currentTrackId = usePlayer((s) => s.current()?.trackId ?? null);
@@ -138,11 +142,7 @@ export default function LibraryScreen() {
         : "曲・アーティストを検索";
 
   if (!client) {
-    return (
-      <Screen>
-        <EmptyView message="サーバーに接続してください" icon="wifi-outline" />
-      </Screen>
-    );
+    return <OfflineLibrary />;
   }
 
   return (
@@ -252,7 +252,9 @@ export default function LibraryScreen() {
           keyboardShouldPersistTaps="handled"
         />
       ) : (
-        <FlatList
+        <>
+          <ArtistGroupToggle value={artistGrouping} onChange={setArtistGrouping} />
+          <FlatList
           data={artists}
           keyExtractor={(a) => a.artist}
           renderItem={({ item }: { item: Artist }) => (
@@ -275,6 +277,74 @@ export default function LibraryScreen() {
           }
           contentContainerStyle={artists.length === 0 ? styles.emptyContent : styles.listContent}
           keyboardShouldPersistTaps="handled"
+          />
+        </>
+      )}
+    </Screen>
+  );
+}
+
+/**
+ * オフライン（未接続）時の Library 表示。
+ * ダウンロード済みがあれば再生可能な一覧を出し、無ければ接続導線を出す。
+ */
+function OfflineLibrary() {
+  const router = useRouter();
+  const entries = useDownloads((s) => s.entries);
+  const currentTrackId = usePlayer((s) => s.current()?.trackId ?? null);
+
+  // 新しい順（永続データは Record なので毎回整列）。
+  const tracks = useMemo(
+    () =>
+      Object.values(entries)
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .map((e) => e.track),
+    [entries],
+  );
+
+  const playFrom = (index: number) => {
+    usePlayer.getState().setQueue(tracks, index);
+    router.push("/player");
+  };
+
+  return (
+    <Screen>
+      <View style={styles.offlineBanner}>
+        <Ionicons name="cloud-offline-outline" size={15} color={PALETTE.textDim} />
+        <Text style={styles.offlineText}>
+          {tracks.length > 0
+            ? `サーバー未接続 ・ ダウンロード済み ${tracks.length}曲`
+            : "サーバー未接続"}
+        </Text>
+      </View>
+
+      {tracks.length === 0 ? (
+        <>
+          <EmptyView message="ダウンロード済みの曲はありません" icon="cloud-offline-outline" />
+          <View style={styles.offlineActions}>
+            <Pressable
+              onPress={() => router.push("/connect")}
+              accessibilityRole="button"
+              accessibilityLabel="サーバーに接続"
+              style={({ pressed }) => [styles.connectBtn, pressed && styles.pressed]}
+            >
+              <Ionicons name="wifi" size={18} color={BRAND.accentText} />
+              <Text style={styles.connectBtnText}>サーバーに接続</Text>
+            </Pressable>
+          </View>
+        </>
+      ) : (
+        <FlatList
+          data={tracks}
+          keyExtractor={(t) => String(t.trackId)}
+          renderItem={({ item, index }) => (
+            <TrackRow
+              track={item}
+              active={currentTrackId === item.trackId}
+              onPress={() => playFrom(index)}
+            />
+          )}
+          contentContainerStyle={styles.listContent}
         />
       )}
     </Screen>
@@ -304,6 +374,43 @@ function ModeToggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
           </Pressable>
         );
       })}
+    </View>
+  );
+}
+
+/** アーティストの束ね方トグル（アーティスト / アルバムアーティスト）。 */
+function ArtistGroupToggle({
+  value,
+  onChange,
+}: {
+  value: ArtistGrouping;
+  onChange: (g: ArtistGrouping) => void;
+}) {
+  const OPTIONS: { value: ArtistGrouping; label: string }[] = [
+    { value: "artist", label: "アーティスト" },
+    { value: "albumArtist", label: "アルバムアーティスト" },
+  ];
+  return (
+    <View style={styles.groupBar}>
+      <Text style={styles.groupLabel}>束ね方</Text>
+      <View style={styles.groupToggle}>
+        {OPTIONS.map(({ value: v, label }) => {
+          const active = value === v;
+          return (
+            <Pressable
+              key={v}
+              onPress={() => onChange(v)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              style={[styles.groupSegment, active && styles.groupSegmentActive]}
+            >
+              <Text style={[styles.groupSegmentText, active && styles.groupSegmentTextActive]}>
+                {label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
@@ -386,10 +493,87 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.7,
   },
+  groupBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 8,
+  },
+  groupLabel: {
+    color: PALETTE.textFaint,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  groupToggle: {
+    flexDirection: "row",
+    flex: 1,
+    gap: 4,
+    padding: 3,
+    borderRadius: 9,
+    backgroundColor: PALETTE.surface,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+  },
+  groupSegment: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  groupSegmentActive: {
+    backgroundColor: PALETTE.accent,
+  },
+  groupSegmentText: {
+    color: PALETTE.textDim,
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  groupSegmentTextActive: {
+    color: BRAND.accentText,
+  },
   listContent: {
     paddingBottom: 96,
   },
   emptyContent: {
     flexGrow: 1,
+  },
+  offlineBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: PALETTE.surface,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+  },
+  offlineText: {
+    color: PALETTE.textDim,
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  offlineActions: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  connectBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: PALETTE.accent,
+  },
+  connectBtnText: {
+    color: BRAND.accentText,
+    fontSize: 15,
+    fontWeight: "700",
   },
 });

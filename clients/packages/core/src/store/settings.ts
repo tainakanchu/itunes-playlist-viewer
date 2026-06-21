@@ -4,15 +4,17 @@
 import * as SecureStore from "expo-secure-store";
 import { create } from "zustand";
 
-import type { DownloadQuality, TrackMetaField, TrackSort, SortField, SortOrder } from "../lib/types";
+import type { ArtistGrouping, DownloadQuality, TrackMetaField, TrackSort, SortField, SortOrder } from "../lib/types";
 
 const KEY_QUALITY = "crateforge.downloadQuality";
 const KEY_ROW_META = "crateforge.rowMetaFields";
 const KEY_TRACK_SORT = "crateforge.trackSort";
+const KEY_ARTIST_GROUPING = "crateforge.artistGrouping";
 
 const DEFAULT_QUALITY: DownloadQuality = "aac192";
 const DEFAULT_ROW_META: TrackMetaField[] = ["bpm"];
 const DEFAULT_SORT: TrackSort = { field: "name", order: "asc" };
+const DEFAULT_ARTIST_GROUPING: ArtistGrouping = "artist";
 
 const VALID_META_FIELDS: TrackMetaField[] = ["bpm", "year", "genre", "rating", "playCount"];
 const VALID_SORT_FIELDS: SortField[] = ["name", "artist", "album", "year", "rating", "playCount", "bpm", "dateAdded"];
@@ -21,6 +23,11 @@ const VALID_ORDERS: SortOrder[] = ["asc", "desc"];
 /** 永続化された文字列が正しい DownloadQuality か検証する。 */
 function isQuality(v: string | null): v is DownloadQuality {
   return v === "original" || v === "aac256" || v === "aac192" || v === "aac128";
+}
+
+/** 永続化された文字列が正しい ArtistGrouping か検証する。 */
+function isArtistGrouping(v: string | null): v is ArtistGrouping {
+  return v === "artist" || v === "albumArtist";
 }
 
 /** JSON 文字列を TrackMetaField[] にパース。不正な値はデフォルトに戻す。 */
@@ -68,6 +75,8 @@ export interface SettingsState {
   rowMetaFields: TrackMetaField[];
   /** 曲一覧のソート。既定は { field: "name", order: "asc" }。 */
   trackSort: TrackSort;
+  /** アーティストモードの束ね方。既定は "artist"。 */
+  artistGrouping: ArtistGrouping;
 
   /** 既定音質を変更し永続化する。 */
   setDownloadQuality: (q: DownloadQuality) => void;
@@ -77,6 +86,8 @@ export interface SettingsState {
   toggleRowMetaField: (field: TrackMetaField) => void;
   /** ソートを変更し永続化する。 */
   setTrackSort: (sort: TrackSort) => void;
+  /** 束ね方を変更し永続化する。 */
+  setArtistGrouping: (grouping: ArtistGrouping) => void;
 
   /** 起動時に SecureStore から復元する。 */
   hydrate: () => Promise<void>;
@@ -86,6 +97,7 @@ export const useSettings = create<SettingsState>((set, get) => ({
   downloadQuality: DEFAULT_QUALITY,
   rowMetaFields: DEFAULT_ROW_META,
   trackSort: DEFAULT_SORT,
+  artistGrouping: DEFAULT_ARTIST_GROUPING,
 
   setDownloadQuality: (q) => {
     set({ downloadQuality: q });
@@ -111,17 +123,24 @@ export const useSettings = create<SettingsState>((set, get) => ({
     void SecureStore.setItemAsync(KEY_TRACK_SORT, JSON.stringify(sort)).catch(() => {});
   },
 
+  setArtistGrouping: (grouping) => {
+    set({ artistGrouping: grouping });
+    void SecureStore.setItemAsync(KEY_ARTIST_GROUPING, grouping).catch(() => {});
+  },
+
   hydrate: async () => {
     try {
-      const [quality, meta, sortRaw] = await Promise.all([
+      const [quality, meta, sortRaw, groupingRaw] = await Promise.all([
         SecureStore.getItemAsync(KEY_QUALITY),
         SecureStore.getItemAsync(KEY_ROW_META),
         SecureStore.getItemAsync(KEY_TRACK_SORT),
+        SecureStore.getItemAsync(KEY_ARTIST_GROUPING),
       ]);
       const updates: Partial<SettingsState> = {};
       if (isQuality(quality)) updates.downloadQuality = quality;
       updates.rowMetaFields = parseMetaFields(meta);
       updates.trackSort = parseTrackSort(sortRaw);
+      if (isArtistGrouping(groupingRaw)) updates.artistGrouping = groupingRaw;
       set(updates);
     } catch {
       // 読み出し失敗は既定値のまま。

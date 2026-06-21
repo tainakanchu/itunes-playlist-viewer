@@ -13,7 +13,7 @@ import * as Updates from "expo-updates";
 
 import { PALETTE } from "@/constants/brand";
 import { createFilePersister } from "@/lib/queryPersister";
-import { useConnection, usePlayer, createAudioEngine, initPlayback } from "@crateforge/core";
+import { useConnection, usePlayer, useDownloads, useSettings, createAudioEngine, initPlayback } from "@crateforge/core";
 
 // ライブラリは頻繁に変わらないので staleTime を長めに取り、タブ/モード切替のたびの
 // 再取得を抑える。全曲取得（曲/アーティストモード）は重いので特に効く。
@@ -48,9 +48,16 @@ async function checkForOtaUpdate(): Promise<void> {
 
 export default function RootLayout() {
   useEffect(() => {
-    void useConnection.getState().hydrate();
     usePlayer.getState().setEngine(createAudioEngine());
     void initPlayback();
+    // 接続判定（Gate）の前にダウンロード/設定を読み込む。オフライン許可判定が DL の有無に依存するため。
+    void (async () => {
+      await Promise.all([
+        useDownloads.getState().hydrate(),
+        useSettings.getState().hydrate(),
+      ]);
+      await useConnection.getState().hydrate();
+    })();
     void checkForOtaUpdate();
   }, []);
 
@@ -93,20 +100,31 @@ export default function RootLayout() {
   );
 }
 
-/** 接続状態に応じて /connect ↔ / を出し分ける（描画なし）。 */
+/**
+ * ルーティングのゲート（描画なし）。
+ * - 復元完了前は何もしない（誤って /connect に飛ばさないため）。
+ * - 接続済み / 接続情報あり（=以前接続した→オフライン許可）/ DL済みあり のいずれかなら入室可。
+ * - 完全初回（接続情報もDLも無い）のときだけオンボーディングの /connect へ。
+ */
 function Gate() {
   const status = useConnection((s) => s.status);
+  const hydrated = useConnection((s) => s.hydrated);
+  const baseUrl = useConnection((s) => s.baseUrl);
+  const hasDownloads = useDownloads((s) => Object.keys(s.entries).length > 0);
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
+    if (!hydrated) return;
     const onConnect = segments[0] === "connect";
-    if ((status === "idle" || status === "error") && !onConnect) {
+    const canEnter =
+      status === "connected" || status === "error" || baseUrl != null || hasDownloads;
+    if (!canEnter && !onConnect) {
       router.replace("/connect");
     } else if (status === "connected" && onConnect) {
       router.replace("/");
     }
-  }, [status, segments, router]);
+  }, [hydrated, status, baseUrl, hasDownloads, segments, router]);
 
   return null;
 }

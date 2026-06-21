@@ -104,6 +104,36 @@ describe("useArtists", () => {
     expect(artistB?.trackCount).toBe(1);
     expect(artistB?.sampleTrackId).toBe(3);
   });
+
+  test("groups tracks by album artist when grouping is albumArtist", async () => {
+    setTestConnection();
+    // コンピレーション: トラックのアーティストはバラバラだがアルバムアーティストは共通。
+    const tracks = [
+      makeTrack({ trackId: 1, artist: "Artist X", albumArtist: "Various Artists", name: "Song 1" }),
+      makeTrack({ trackId: 2, artist: "Artist Y", albumArtist: "Various Artists", name: "Song 2" }),
+      makeTrack({ trackId: 3, artist: "Solo Artist", albumArtist: null, name: "Song 3" }),
+    ];
+    mockFetchByUrl(tracks);
+
+    const wrapper = createQueryWrapper();
+    const { result } = await renderHook(() => useArtists(true, "albumArtist"), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    const data: import("@crateforge/core").Artist[] = result.current.data ?? [];
+    // Various Artists（2曲） と Solo Artist（albumArtist 無しなので artist フォールバック）。
+    expect(data).toHaveLength(2);
+
+    const various = data.find((a) => a.artist === "Various Artists");
+    expect(various).toBeDefined();
+    expect(various?.trackCount).toBe(2);
+    expect(various?.sampleTrackId).toBe(1);
+
+    const solo = data.find((a) => a.artist === "Solo Artist");
+    expect(solo).toBeDefined();
+    expect(solo?.trackCount).toBe(1);
+    expect(solo?.sampleTrackId).toBe(3);
+  });
 });
 
 describe("Library artist mode", () => {

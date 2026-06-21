@@ -2,9 +2,10 @@
 // 全フックは useConnection().client（接続中のみ非 null）を読み、enabled: !!client。
 // queryFn では client のメソッドを使い、AbortSignal を受け取る経路には渡す。
 
+import { useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { type Album, type Artist, type GenreTagCount, type Playlist, type PlaylistDetail, type SimilarHit, type Track, type TracksQuery, trackArtist, useConnection } from "@crateforge/core";
+import { type Album, type Artist, type ArtistGrouping, type GenreTagCount, type Playlist, type PlaylistDetail, type SimilarHit, type Track, type TracksQuery, trackArtist, trackAlbumArtist, useConnection } from "@crateforge/core";
 
 /** 大規模ライブラリでも全件取得（仮想リスト前提）。500/200 上限の撤廃。 */
 export const BROWSE_LIMIT = 100000;
@@ -79,17 +80,15 @@ export function useAlbumTracks(album: string | null) {
   });
 }
 
-/** アーティスト一覧（クライアント側で全曲から集計）。enabled=false で取得抑止。 */
-export function useArtists(enabled = true) {
+/** アーティスト一覧（クライアント側で全曲から集計）。grouping で束ね方を切替。enabled=false で取得抑止。 */
+export function useArtists(enabled = true, grouping: ArtistGrouping = "artist") {
   const client = useConnection((s) => s.client);
-  return useQuery<Track[], Error, Artist[]>({
-    queryKey: ["tracks", { limit: BROWSE_LIMIT }],
-    enabled: !!client && enabled,
-    queryFn: ({ signal }) => client!.listTracks({ limit: BROWSE_LIMIT }, signal),
-    select: (tracks: Track[]): Artist[] => {
+  const select = useCallback(
+    (tracks: Track[]): Artist[] => {
+      const nameOf = grouping === "albumArtist" ? trackAlbumArtist : trackArtist;
       const map = new Map<string, { trackCount: number; sampleTrackId: number }>();
       for (const t of tracks) {
-        const name = trackArtist(t);
+        const name = nameOf(t);
         const entry = map.get(name);
         if (entry) {
           entry.trackCount += 1;
@@ -101,18 +100,31 @@ export function useArtists(enabled = true) {
         .map(([artist, { trackCount, sampleTrackId }]) => ({ artist, trackCount, sampleTrackId }))
         .sort((a, b) => a.artist.localeCompare(b.artist, undefined, { sensitivity: "base" }));
     },
+    [grouping],
+  );
+  return useQuery<Track[], Error, Artist[]>({
+    queryKey: ["tracks", { limit: BROWSE_LIMIT }],
+    enabled: !!client && enabled,
+    queryFn: ({ signal }) => client!.listTracks({ limit: BROWSE_LIMIT }, signal),
+    select,
   });
 }
 
-/** 指定アーティストの曲（artist が null のときは無効）。 */
-export function useArtistTracks(artist: string | null) {
+/** 指定アーティストの曲（artist が null のときは無効）。grouping で束ね方を合わせる。 */
+export function useArtistTracks(artist: string | null, grouping: ArtistGrouping = "artist") {
   const client = useConnection((s) => s.client);
+  const select = useCallback(
+    (tracks: Track[]): Track[] => {
+      const nameOf = grouping === "albumArtist" ? trackAlbumArtist : trackArtist;
+      return tracks.filter((t) => nameOf(t) === artist);
+    },
+    [artist, grouping],
+  );
   return useQuery<Track[], Error, Track[]>({
     queryKey: ["tracks", { limit: BROWSE_LIMIT }],
     enabled: !!client && artist != null,
     queryFn: ({ signal }) => client!.listTracks({ limit: BROWSE_LIMIT }, signal),
-    select: (tracks: Track[]): Track[] =>
-      tracks.filter((t) => trackArtist(t) === artist),
+    select,
   });
 }
 

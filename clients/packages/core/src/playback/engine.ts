@@ -35,18 +35,24 @@ export class ExpoAudioEngine implements AudioEngine {
 
   load(track: Track): void {
     const client = useConnection.getState().client;
-    if (!client) return;
     // CRITICAL: メディアは track.trackId（iTunes trackId）で解決する。
-    // オフライン保存済みならローカルファイルを優先し、無ければ LAN ストリーム（native=1）。
+    // オフライン保存済みならローカルファイルを優先（client 不要で再生可）。
+    // 未保存のときだけ接続中の LAN ストリーム（native=1）を使う。
     const local = useDownloads.getState().getLocalUri(track.trackId);
-    if (local) this.player.replace({ uri: local });
-    else this.player.replace(client.streamSource(track.trackId, { native: true }));
-    // ロック画面メタを設定（artwork は token 付き URL）。
+    if (local) {
+      this.player.replace({ uri: local });
+    } else if (client) {
+      this.player.replace(client.streamSource(track.trackId, { native: true }));
+    } else {
+      // オフラインかつ未ダウンロード → 再生できる音源が無い。
+      return;
+    }
+    // ロック画面メタを設定（artwork は接続時のみ token 付き URL を渡す）。
     this.player.setActiveForLockScreen(true, {
       title: trackTitle(track),
       artist: trackArtist(track),
       albumTitle: track.album ?? undefined,
-      artworkUrl: client.artworkUrl(track.trackId),
+      artworkUrl: client?.artworkUrl(track.trackId),
     });
   }
 

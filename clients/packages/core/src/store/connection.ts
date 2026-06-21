@@ -19,6 +19,8 @@ export interface ConnectionState {
   error: string | null;
   /** 接続確立後のみ非 null。 */
   client: ApiClient | null;
+  /** hydrate() が一度完了したか。ルーティング判定はこれが true になってから行う。 */
+  hydrated: boolean;
 
   /** 起動時に SecureStore から復元し、疎通確認する。 */
   hydrate: () => Promise<void>;
@@ -48,6 +50,7 @@ export const useConnection = create<ConnectionState>((set) => ({
   status: "idle",
   error: null,
   client: null,
+  hydrated: false,
 
   hydrate: async () => {
     const [baseUrl, token] = await Promise.all([
@@ -55,16 +58,16 @@ export const useConnection = create<ConnectionState>((set) => ({
       SecureStore.getItemAsync(KEY_TOKEN),
     ]);
     if (!baseUrl) {
-      set({ status: "idle" });
+      set({ status: "idle", hydrated: true });
       return;
     }
     set({ baseUrl, token: token ?? null, status: "connecting", error: null });
     try {
       const client = await probe(baseUrl, token ?? null);
-      set({ client, status: "connected", error: null });
+      set({ client, status: "connected", error: null, hydrated: true });
     } catch (e) {
       // 復元はしたが疎通失敗（サーバー停止/IP 変動など）。情報は保持し再接続を促す。
-      set({ status: "error", error: errorMessage(e), client: null });
+      set({ status: "error", error: errorMessage(e), client: null, hydrated: true });
     }
   },
 

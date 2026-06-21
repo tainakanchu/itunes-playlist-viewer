@@ -105,14 +105,15 @@ describe("LibraryScreen", () => {
     expect(usePlayer.getState().current()?.trackId).toBe(22);
   });
 
-  test("shows connect prompt when no client", async () => {
-    // 未接続（resetTestState 済み）
+  test("shows offline library with connect action when no client and no downloads", async () => {
+    // 未接続かつ DL なし（resetTestState 済み）→ オフライン表示＋接続導線。
     const Wrapper = createQueryWrapper();
     await render(
       <Wrapper>
         <LibraryScreen />
       </Wrapper>,
     );
-    expect(await screen.findByText("サーバーに接続してください")).toBeTruthy();
+    expect(await screen.findByText("ダウンロード済みの曲はありません")).toBeTruthy();
+    expect(screen.getByLabelText("サーバーに接続")).toBeTruthy();
   });
 });
