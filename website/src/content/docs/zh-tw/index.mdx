@@ -1,0 +1,72 @@
+---
+title: Crateforge 文件
+description: 極速 iTunes 風格音樂管理 / DJ 選曲桌面應用程式 Crateforge 的使用指南。
+template: splash
+hero:
+  tagline: 從極速 iTunes 風格的音樂管理，到 DJ 解析、相似度選曲、AI 選曲，一個應用程式全部搞定。
+  actions:
+    - text: 從安裝開始
+      link: ./guide/install/
+      icon: right-arrow
+      variant: primary
+    - text: 在 GitHub 上查看
+      link: https://github.com/tainakanchu/crateforge
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+> 🚧 翻訳準備中 / Translation in progress / 翻譯準備中
+
+## Crateforge とは
+
+**Crateforge** は Tauri 2 + React 19 + Vite 6 + Rust 製の、爆速 iTunes 風 音楽管理デスクトップアプリです。
+`iTunes Library.xml` の取り込み / 書き出し、ローカルファイル取り込み、CD リッピング、プレイリスト編集、ローカル再生に加え、
+DJ 向けの解析（BPM / Key (Camelot) / Energy）・類似度選曲・フォーマット変換・スマートプレイリストまで、**このアプリ単体で完結**します。
+
+> 旧名は「iTunes Playlist Viewer」です。crate（掘る・集める）+ forge（鍛える・組み上げる）で、解析して選曲しセットを鍛えるという中身を表す名前にリブランドしました。
+
+## 主要機能
+
+<CardGrid stagger>
+  <Card title="爆速ライブラリ" icon="rocket">
+    SQLite (WAL) + 索引で 10,000+ トラックでも快適。リストは仮想化で軽快にスクロールできます。
+  </Card>
+  <Card title="iTunes XML 互換" icon="document">
+    入出力とも Apple plist 形式。rekordbox / Serato / Traktor などが読み取れる XML を書き出せます。
+  </Card>
+  <Card title="DJ 解析" icon="setting">
+    純 Rust の DSP で BPM / Key (Camelot) / Energy / ラウドネスと類似度を解析。Harmonic な「次の一手」を提案します。
+  </Card>
+  <Card title="ローカル再生" icon="seti:audio">
+    rodio (symphonia) で各種フォーマットを直接デコード。Up Next キュー・シャッフル・リピートに対応。
+  </Card>
+  <Card title="スマートプレイリスト" icon="list-format">
+    条件で中身が自動的に決まるプレイリスト。開くたびに最新の状態へ。
+  </Card>
+  <Card title="モバイル & リモコン" icon="laptop">
+    内蔵 API サーバーでスマホ/TV から再生・リモコン操作。モバイルはオフライン DL / 閲覧 / 再生にも対応。
+  </Card>
+  <Card title="フォーマット変換" icon="random">
+    ffmpeg で MP3 / AAC / Opus / FLAC / ALAC / WAV に変換。タグとカバーアートを引き継ぎます。
+  </Card>
+  <Card title="AI 選曲" icon="puzzle">
+    ローカル HTTP API を内蔵。Claude Code プラグイン dj-curator から選曲の叩き台を生成できます。
+  </Card>
+</CardGrid>
+
+## 対応 OS
+
+- **Windows** — `.exe` / ポータブル `.zip` / `.msi` / セットアップ `.exe`。アプリ内の自動更新に対応（exe をその場で差し替え）。
+- **macOS** — **未署名** の `.dmg`（Apple Silicon / Intel）。初回起動は Gatekeeper を回避する必要があります。
+- **Linux** — `.AppImage`（単一ファイル）と `.deb`。
+
+> アプリ内の自動更新は **Windows 専用** です。macOS / Linux は手動更新になります。
+
+## 次のステップ
+
+- [インストール](./guide/install/) — ダウンロードから初回起動・自動アップデートまで
+- [ライブラリ取り込み](./guide/import/) — iTunes XML / フォルダ取り込み
+- [再生・キュー・Crate](./guide/playback/) — Up Next と DJ 選曲の使い方
+- [DJ 解析](./guide/dj-analysis/) — BPM / Key / Energy / 類似度

@@ -1,4 +1,4 @@
-name: Deploy Landing Page to GitHub Pages
+name: Deploy Site (LP + Docs) to GitHub Pages
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "site/**"
+      - "website/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -19,14 +20,40 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: website/pnpm-lock.yaml
+
+      # ドキュメント (Astro + Starlight) を website/ でビルド → website/dist。
+      - name: Install docs deps
+        working-directory: website
+        run: pnpm install --frozen-lockfile
+
+      - name: Build docs (Astro + Starlight)
+        working-directory: website
+        run: pnpm build
+
+      # LP(site/) をルート、ドキュメント(website/dist) を /docs/ 配下に合成する。
+      - name: Assemble site (LP at root, docs under /docs)
+        run: |
+          rm -rf _site
+          mkdir -p _site/docs
+          cp -r site/. _site/
+          cp -r website/dist/. _site/docs/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -34,8 +61,15 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: _site
 
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

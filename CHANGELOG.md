@@ -10,6 +10,26 @@ Each release is documented in both Japanese and English.
 
 ## [Unreleased]
 
+## [v0.8.5] - 2026-06-22
+
+### 日本語
+
+#### ドキュメント
+- **使い方ドキュメントサイトを新設**：Astro + Starlight 製のドキュメント（日本語＋英語＋繁體中文）を
+  GitHub Pages の `/docs/` に追加（インストール／ライブラリ取り込み／再生・キュー・Crate／
+  スマートプレイリスト／表示カスタマイズ・ショートカット／DJ 解析／API サーバー・ペアリング／
+  モバイル／変換）。LP のナビから「ドキュメント」で辿れます。※英語・繁體中文は順次翻訳。
+- UX「気が利く化」バックログ（`docs/ux-polish-backlog.md`）を、出荷バージョン対応付きの実施記録へ整理。
+
+### English
+
+#### Docs
+- **New usage documentation site**: an Astro + Starlight docs site (Japanese + English + Traditional
+  Chinese) is now published under `/docs/` on GitHub Pages (install / library import / playback, queue
+  & crate / smart playlists / customization & shortcuts / DJ analysis / API server & pairing / mobile /
+  convert), reachable from the landing page's "Docs" nav. English/zh-TW translations to follow.
+- Reorganized the UX-polish backlog (`docs/ux-polish-backlog.md`) into a shipped-status record.
+
 ## [v0.8.4] - 2026-06-22
 
 ### 日本語

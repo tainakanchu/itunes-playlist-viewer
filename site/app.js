@@ -10,6 +10,7 @@ const I18N = {
     "nav.analysis": "DJ 解析",
     "nav.ai": "AI 選曲",
     "nav.download": "ダウンロード",
+    "nav.docs": "ドキュメント",
     "nav.downloadBtn": "ダウンロード",
     "hero.badge": "Tauri 2 + React 19 + Rust 製デスクトップアプリ",
     "hero.subtitle":
@@ -88,6 +89,7 @@ const I18N = {
     "nav.analysis": "DJ Analysis",
     "nav.ai": "AI Curation",
     "nav.download": "Download",
+    "nav.docs": "Docs",
     "nav.downloadBtn": "Download",
     "hero.badge": "A desktop app built with Tauri 2 + React 19 + Rust",
     "hero.subtitle":
@@ -167,6 +169,7 @@ const I18N = {
     "nav.analysis": "DJ 分析",
     "nav.ai": "AI 選曲",
     "nav.download": "下載",
+    "nav.docs": "文件",
     "nav.downloadBtn": "下載",
     "hero.badge": "以 Tauri 2 + React 19 + Rust 打造的桌面應用程式",
     "hero.subtitle":

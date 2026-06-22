@@ -1,0 +1,3 @@
+# Keep this docs site as a standalone (non-workspace) pnpm project so its
+# install does not get hoisted into the repo root / clients workspaces.
+packages: []

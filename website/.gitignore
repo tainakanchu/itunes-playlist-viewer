@@ -1,0 +1,10 @@
+# build output
+dist/
+# generated types
+.astro/
+# deps
+node_modules/
+# pagefind
+src/pagefind/
+# misc
+.DS_Store
