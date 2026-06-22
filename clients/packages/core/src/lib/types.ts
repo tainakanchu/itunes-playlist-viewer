@@ -150,6 +150,8 @@ export interface DownloadEntry {
   bytes: number;
   /** ダウンロード時刻（epoch ms）。 */
   createdAt: number;
+  /** ローカルに保存したアルバムアートの file:// URI。未取得または失敗なら null/undefined。 */
+  artworkUri?: string | null;
 }
 
 /** オフライン保存したプレイリスト。メンバーはトラックメタに無いので保存時に記録する。 */

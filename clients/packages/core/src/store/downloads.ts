@@ -51,6 +51,36 @@ function extFor(track: Track, quality: DownloadQuality): string {
   return quality === "original" ? inferExt(track) : "m4a";
 }
 
+/** アートワーク保存先サブディレクトリ（document/downloads/art）。 */
+function artDir(): Directory {
+  return new Directory(downloadsDir(), "art");
+}
+
+/** アートワーク保存用ディレクトリを保証する（無ければ作る）。 */
+function ensureArtDir(): Directory {
+  const dir = artDir();
+  try {
+    if (!dir.exists) dir.create();
+  } catch {
+    // 既存/権限などは無視。
+  }
+  return dir;
+}
+
+/**
+ * アルバム単位でアートを重複排除するためのファイル名キー。
+ * `albumArtist（またはartist）::album` を英数字とハイフン以外を `_` に置換した文字列。
+ * 長すぎる場合に備え先頭128文字に切り詰める（衝突リスクは許容範囲）。
+ */
+function albumArtKey(track: Track): string {
+  const artist = track.albumArtist ?? track.artist ?? "";
+  const album = track.album ?? "";
+  const raw = `${artist}::${album}`;
+  // ファイル名安全化: 英数字・ハイフン・ドット以外を `_` に
+  const safe = raw.replace(/[^a-zA-Z0-9\-\.]/g, "_");
+  return safe.slice(0, 128);
+}
+
 export interface DownloadsState {
   /** trackId → ダウンロード済みエントリ。 */
   entries: Record<number, DownloadEntry>;
@@ -64,6 +94,8 @@ export interface DownloadsState {
 
   isDownloaded: (trackId: number) => boolean;
   getLocalUri: (trackId: number) => string | null;
+  /** ローカル保存済みアルバムアートの file:// URI を返す。未取得なら null。 */
+  getLocalArtworkUri: (trackId: number) => string | null;
 
   /** 1 曲をダウンロードして保存・記録する。接続中の client と既定音質を使う。 */
   downloadTrack: (track: Track) => Promise<void>;
@@ -156,6 +188,7 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
 
   isDownloaded: (trackId) => get().entries[trackId] != null,
   getLocalUri: (trackId) => get().entries[trackId]?.localUri ?? null,
+  getLocalArtworkUri: (trackId) => get().entries[trackId]?.artworkUri ?? null,
 
   downloadTrack: async (track) => {
     if (get().isDownloaded(track.trackId)) return;
@@ -170,6 +203,27 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
       const ext = extFor(track, quality);
       const dest = new File(downloadsDir(), `${track.trackId}.${ext}`);
       const f = await File.downloadFileAsync(url, dest, { idempotent: true });
+
+      // アルバムアートをサムネとして保存（失敗しても音源DLは成功扱い）。
+      let artworkUri: string | null = null;
+      try {
+        ensureArtDir();
+        const key = albumArtKey(track);
+        const artFile = new File(artDir(), `${key}.webp`);
+        if (artFile.exists) {
+          // 同アルバムの既存ファイルを再利用（DLしない）。
+          artworkUri = artFile.uri;
+        } else {
+          const baseArtUrl = client.artworkUrl(track.trackId);
+          const artUrl =
+            baseArtUrl + (baseArtUrl.includes("?") ? "&" : "?") + "size=256&format=webp";
+          const artF = await File.downloadFileAsync(artUrl, artFile, { idempotent: true });
+          artworkUri = artF.uri;
+        }
+      } catch {
+        // アート取得失敗は artworkUri を null のまま続行。
+      }
+
       const entry: DownloadEntry = {
         trackId: track.trackId,
         track,
@@ -177,6 +231,7 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
         quality,
         bytes: f.size ?? 0,
         createdAt: Date.now(),
+        artworkUri,
       };
       set((s) => {
         const entries = { ...s.entries, [track.trackId]: entry };
@@ -262,6 +317,13 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
       } catch {
         // 個別失敗は無視して続行。
       }
+    }
+    // art ディレクトリごと削除（アルバム共有のためまとめて消す）。
+    try {
+      const dir = artDir();
+      if (dir.exists) dir.delete();
+    } catch {
+      // 削除失敗は無視。
     }
     const empty: Record<number, DownloadEntry> = {};
     persist(empty);

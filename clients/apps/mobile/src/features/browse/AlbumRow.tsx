@@ -1,12 +1,13 @@
 // アルバム一覧の 1 行。サムネイル（代表トラックの artwork）+ アルバム名（太字）
 // + アルバムアーティスト + 曲数。未接続/欠損はプレースホルダ。
+// ローカル保存済みアートがあればオフラインでも表示する。
 // CRITICAL: artwork は album.sampleTrackId（= trackId）で取得する。
 
 import { Pressable, Text, View, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 
-import { type Album, useConnection } from "@crateforge/core";
+import { type Album, useConnection, useDownloads } from "@crateforge/core";
 import { PALETTE } from "@/constants/brand";
 
 export interface AlbumRowProps {
@@ -19,7 +20,9 @@ const RADIUS = 6;
 
 export default function AlbumRow({ album, onPress }: AlbumRowProps) {
   const client = useConnection((s) => s.client);
-  const source = client?.artworkSource(album.sampleTrackId);
+  // ローカル保存済みアートを最優先。DL完了で再描画されるようリアクティブに取得する。
+  const localArtworkUri = useDownloads((s) => s.getLocalArtworkUri(album.sampleTrackId));
+  const source = localArtworkUri ?? client?.artworkSource(album.sampleTrackId);
   const dimensions = { width: THUMB, height: THUMB, borderRadius: RADIUS };
 
   return (

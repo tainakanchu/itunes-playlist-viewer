@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, FlatList, Pressable, Text, TextInput, View, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 
 import { type Album, type Artist, type DownloadedPlaylist, type SortField, type Track, useConnection, usePlayer, useDownloads, useSettings } from "@crateforge/core";
@@ -286,7 +287,11 @@ function OfflineLibrary() {
   const router = useRouter();
   const entries = useDownloads((s) => s.entries);
   const playlists = useDownloads((s) => s.playlists);
+  const getLocalArtworkUri = useDownloads((s) => s.getLocalArtworkUri);
   const currentTrackId = usePlayer((s) => s.current()?.trackId ?? null);
+  // アーティストの束ね方は設定に追従する（artist ページの絞り込みと一致させ、
+  // 遷移先が空になるのを防ぐ）。
+  const artistGrouping = useSettings((s) => s.artistGrouping);
 
   // 新しい順（永続データは Record なので毎回整列）。
   const tracks = useMemo(
@@ -298,16 +303,70 @@ function OfflineLibrary() {
   );
 
   // entries から album 名でグルーピングしてアルバム一覧を導出する（album が空の曲は除外）。
-  const offlineAlbums = useMemo(() => {
-    const albumMap = new Map<string, number>();
+  // アルバムごとに 曲数 / 表示アーティスト / アート用の代表トラックID を持たせる。
+  const offlineAlbums = useMemo((): OfflineAlbum[] => {
+    // album 名 → { 曲数, アーティスト集合, 代表トラックID } を集約。
+    const map = new Map<
+      string,
+      { count: number; artists: Set<string>; repTrackId: number }
+    >();
     for (const e of Object.values(entries)) {
-      if (!e.track.album) continue;
-      albumMap.set(e.track.album, (albumMap.get(e.track.album) ?? 0) + 1);
+      const album = e.track.album;
+      if (!album) continue;
+      const existing = map.get(album);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        // そのアルバムで最初に見つかったDL曲を代表トラックにする。
+        map.set(album, {
+          count: 1,
+          artists: new Set(),
+          repTrackId: e.track.trackId,
+        });
+      }
+      // 表示アーティストは albumArtist 優先・非空のみを distinct 収集。
+      const artist = e.track.albumArtist ?? e.track.artist;
+      if (artist) map.get(album)!.artists.add(artist);
     }
-    return Array.from(albumMap.entries())
-      .map(([name, count]) => ({ name, count }))
+    return Array.from(map.entries())
+      .map(([name, v]) => ({
+        name,
+        count: v.count,
+        // distinct なアーティストが1つなら其れ、2つ以上なら "Various Artists"、空なら空文字。
+        artist:
+          v.artists.size === 0
+            ? ""
+            : v.artists.size === 1
+              ? [...v.artists][0]
+              : "Various Artists",
+        repTrackId: v.repTrackId,
+      }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [entries]);
+
+  // entries をアーティストでグルーピング（空アーティストは除外）。
+  // 束ね方は設定 (artistGrouping) に追従させ、artist ページの nameOf と一致させる
+  // （"albumArtist" なら albumArtist 優先、それ以外は artist 優先）。
+  const offlineArtists = useMemo((): OfflineArtist[] => {
+    const map = new Map<string, { count: number; repTrackId: number }>();
+    for (const e of Object.values(entries)) {
+      const name =
+        artistGrouping === "albumArtist"
+          ? (e.track.albumArtist ?? e.track.artist)
+          : (e.track.artist ?? e.track.albumArtist);
+      if (!name) continue;
+      const existing = map.get(name);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        // 最初に見つかったDL曲を代表トラックにする。
+        map.set(name, { count: 1, repTrackId: e.track.trackId });
+      }
+    }
+    return Array.from(map.entries())
+      .map(([name, v]) => ({ name, count: v.count, repTrackId: v.repTrackId }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [entries, artistGrouping]);
 
   // DL済みプレイリスト（新しい順）。
   const offlinePlaylists = useMemo(
@@ -315,7 +374,8 @@ function OfflineLibrary() {
     [playlists],
   );
 
-  const hasCollection = offlineAlbums.length > 0 || offlinePlaylists.length > 0;
+  const hasCollection =
+    offlineAlbums.length > 0 || offlineArtists.length > 0 || offlinePlaylists.length > 0;
   const hasAnything = tracks.length > 0 || hasCollection;
 
   const playFrom = (index: number) => {
@@ -364,7 +424,9 @@ function OfflineLibrary() {
             hasCollection ? (
               <OfflineCollectionHeader
                 albums={offlineAlbums}
+                artists={offlineArtists}
                 playlists={offlinePlaylists}
+                getLocalArtworkUri={getLocalArtworkUri}
               />
             ) : (
               <Text style={styles.sectionHeader}>すべてのダウンロード</Text>
@@ -377,23 +439,65 @@ function OfflineLibrary() {
   );
 }
 
+/** オフライン時のアルバム集約（アート用代表トラック・表示アーティスト付き）。 */
+type OfflineAlbum = { name: string; count: number; artist: string; repTrackId: number };
+/** オフライン時のアーティスト集約（アート用代表トラック付き）。 */
+type OfflineArtist = { name: string; count: number; repTrackId: number };
+
 /**
- * オフライン時のコレクションセクション（アルバム・プレイリスト）。
+ * ローカル保存アートの小サムネイル。アートが無ければ指定アイコンにフォールバック。
+ * uri は getLocalArtworkUri(repTrackId) で得た file:// URI。
+ */
+function LocalArt({
+  uri,
+  fallbackIcon,
+  circular,
+}: {
+  uri: string | null;
+  fallbackIcon: keyof typeof Ionicons.glyphMap;
+  circular?: boolean;
+}) {
+  const radius = circular ? COLLECTION_THUMB / 2 : COLLECTION_RADIUS;
+  const dims = { width: COLLECTION_THUMB, height: COLLECTION_THUMB, borderRadius: radius };
+  if (uri) {
+    return (
+      <Image
+        source={{ uri }}
+        style={[styles.collectionArt, dims]}
+        contentFit="cover"
+        transition={120}
+        recyclingKey={uri}
+      />
+    );
+  }
+  return (
+    <View style={[styles.collectionArtPlaceholder, dims]}>
+      <Ionicons name={fallbackIcon} size={Math.round(COLLECTION_THUMB * 0.5)} color={PALETTE.textFaint} />
+    </View>
+  );
+}
+
+/**
+ * オフライン時のコレクションセクション（アルバム・アーティスト・プレイリスト）。
  * OfflineLibrary の FlatList の ListHeaderComponent として使う。
  */
 function OfflineCollectionHeader({
   albums,
+  artists,
   playlists,
+  getLocalArtworkUri,
 }: {
-  albums: { name: string; count: number }[];
+  albums: OfflineAlbum[];
+  artists: OfflineArtist[];
   playlists: DownloadedPlaylist[];
+  getLocalArtworkUri: (trackId: number) => string | null;
 }) {
   const router = useRouter();
   return (
     <View>
       <Text style={styles.sectionHeader}>コレクション</Text>
 
-      {/* DL済みアルバム */}
+      {/* DL済みアルバム（アート＋アルバム名＋アーティスト＋曲数） */}
       {albums.length > 0 ? (
         <>
           <Text style={styles.collectionSubHeader}>アルバム</Text>
@@ -405,17 +509,42 @@ function OfflineCollectionHeader({
               accessibilityLabel={a.name}
               style={({ pressed }) => [styles.collectionRow, pressed && styles.pressed]}
             >
-              <Ionicons
-                name="albums-outline"
-                size={20}
-                color={PALETTE.textDim}
-                style={styles.collectionIcon}
-              />
+              <LocalArt uri={getLocalArtworkUri(a.repTrackId)} fallbackIcon="albums-outline" />
               <View style={styles.collectionText}>
                 <Text style={styles.collectionName} numberOfLines={1}>
                   {a.name}
                 </Text>
+                {a.artist ? (
+                  <Text style={styles.collectionSub} numberOfLines={1}>
+                    {a.artist}
+                  </Text>
+                ) : null}
                 <Text style={styles.collectionMeta}>{a.count}曲</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={PALETTE.textFaint} />
+            </Pressable>
+          ))}
+        </>
+      ) : null}
+
+      {/* DL済みアーティスト（円形アート＋アーティスト名＋曲数） */}
+      {artists.length > 0 ? (
+        <>
+          <Text style={styles.collectionSubHeader}>アーティスト</Text>
+          {artists.map((ar) => (
+            <Pressable
+              key={ar.name}
+              onPress={() => router.push(`/artist/${encodeURIComponent(ar.name)}`)}
+              accessibilityRole="button"
+              accessibilityLabel={ar.name}
+              style={({ pressed }) => [styles.collectionRow, pressed && styles.pressed]}
+            >
+              <LocalArt uri={getLocalArtworkUri(ar.repTrackId)} fallbackIcon="person-outline" circular />
+              <View style={styles.collectionText}>
+                <Text style={styles.collectionName} numberOfLines={1}>
+                  {ar.name}
+                </Text>
+                <Text style={styles.collectionMeta}>{ar.count}曲</Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={PALETTE.textFaint} />
             </Pressable>
@@ -489,6 +618,10 @@ function ModeToggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
 function errorText(e: unknown): string {
   return e instanceof Error ? e.message : "読み込みに失敗しました";
 }
+
+// コレクション行のサムネイル寸法（AlbumRow に倣う）。
+const COLLECTION_THUMB = 44;
+const COLLECTION_RADIUS = 6;
 
 const styles = StyleSheet.create({
   toggle: {
@@ -638,6 +771,16 @@ const styles = StyleSheet.create({
   collectionIcon: {
     marginRight: 12,
   },
+  collectionArt: {
+    marginRight: 12,
+    backgroundColor: PALETTE.surfaceAlt,
+  },
+  collectionArtPlaceholder: {
+    marginRight: 12,
+    backgroundColor: PALETTE.surfaceAlt,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   collectionText: {
     flex: 1,
     minWidth: 0,
@@ -646,6 +789,11 @@ const styles = StyleSheet.create({
     color: PALETTE.text,
     fontSize: 15,
     fontWeight: "600",
+  },
+  collectionSub: {
+    color: PALETTE.textDim,
+    fontSize: 13,
+    marginTop: 1,
   },
   collectionMeta: {
     color: PALETTE.textFaint,

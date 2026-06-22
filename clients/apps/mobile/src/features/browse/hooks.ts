@@ -2,10 +2,10 @@
 // 全フックは useConnection().client（接続中のみ非 null）を読み、enabled: !!client。
 // queryFn では client のメソッドを使い、AbortSignal を受け取る経路には渡す。
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { type Album, type Artist, type ArtistGrouping, type GenreTagCount, type Playlist, type PlaylistDetail, type SimilarHit, type Track, type TracksQuery, trackArtist, trackAlbumArtist, useConnection, useSettings } from "@crateforge/core";
+import { type Album, type Artist, type ArtistGrouping, type GenreTagCount, type Playlist, type PlaylistDetail, type SimilarHit, type Track, type TracksQuery, trackArtist, trackAlbumArtist, useConnection, useDownloads, useSettings } from "@crateforge/core";
 
 /** 大規模ライブラリでも全件取得（仮想リスト前提）。500/200 上限の撤廃。 */
 export const BROWSE_LIMIT = 100000;
@@ -138,6 +138,84 @@ export function useArtistTracks(artist: string | null, grouping?: ArtistGrouping
     queryFn: ({ signal }) => client!.listTracks({ limit: BROWSE_LIMIT }, signal),
     select,
   });
+}
+
+/** 指定アーティストの曲を album でグルーピングして Album[] を作る。
+ * artwork 用の sampleTrackId は、可能なら DL 済みトラックを優先（オフラインでローカルアートを引けるよう）。
+ * downloadedIds は DL 済み trackId の集合（オンライン時は空でよい）。
+ */
+function deriveArtistAlbums(
+  tracks: Track[],
+  artist: string,
+  grouping: ArtistGrouping,
+  downloadedIds: Set<number>,
+): Album[] {
+  const nameOf = grouping === "albumArtist" ? trackAlbumArtist : trackArtist;
+  const map = new Map<
+    string,
+    { album: string; albumArtist: string | null; trackCount: number; sampleTrackId: number; sampleDownloaded: boolean }
+  >();
+  for (const t of tracks) {
+    if (nameOf(t) !== artist) continue;
+    const album = t.album ?? "";
+    const isDownloaded = downloadedIds.has(t.trackId);
+    const entry = map.get(album);
+    if (entry) {
+      entry.trackCount += 1;
+      // 代表トラックは「DL 済み優先」。既存が未 DL で今回が DL 済みなら差し替える。
+      if (isDownloaded && !entry.sampleDownloaded) {
+        entry.sampleTrackId = t.trackId;
+        entry.sampleDownloaded = true;
+      }
+    } else {
+      map.set(album, {
+        album,
+        albumArtist: t.albumArtist,
+        trackCount: 1,
+        sampleTrackId: t.trackId,
+        sampleDownloaded: isDownloaded,
+      });
+    }
+  }
+  return [...map.values()]
+    .map(({ album, albumArtist, trackCount, sampleTrackId }) => ({ album, albumArtist, trackCount, sampleTrackId }))
+    .sort(
+      (a, b) =>
+        (a.albumArtist ?? a.album).localeCompare(b.albumArtist ?? b.album, undefined, { sensitivity: "base" }) ||
+        a.album.localeCompare(b.album, undefined, { sensitivity: "base" }),
+    );
+}
+
+/** 指定アーティストのアルバム一覧（album でグルーピング）。
+ * オンライン=全曲キャッシュからフィルタ／オフライン（client null）=DL 済み entries からフィルタ。
+ * grouping を引数で上書き可能。省略時はストアの artistGrouping を使う。
+ * ソートは albumArtist 順（同点は album 名）。
+ */
+export function useArtistAlbums(artist: string | null, grouping?: ArtistGrouping): Album[] {
+  const client = useConnection((s) => s.client);
+  const storedGrouping = useSettings((s) => s.artistGrouping);
+  const resolvedGrouping = grouping ?? storedGrouping;
+  const entries = useDownloads((s) => s.entries);
+  // オンライン時のみ全曲キャッシュを使う（select でアルバム集計）。
+  const downloadedIds = useMemo(() => new Set(Object.values(entries).map((e) => e.trackId)), [entries]);
+  const select = useCallback(
+    (tracks: Track[]): Album[] =>
+      artist == null ? [] : deriveArtistAlbums(tracks, artist, resolvedGrouping, downloadedIds),
+    [artist, resolvedGrouping, downloadedIds],
+  );
+  const query = useQuery<Track[], Error, Album[]>({
+    queryKey: ["tracks", { limit: BROWSE_LIMIT }],
+    enabled: !!client && artist != null,
+    queryFn: ({ signal }) => client!.listTracks({ limit: BROWSE_LIMIT }, signal),
+    select,
+  });
+  // オフライン（client null）は DL 済みトラックからアルバムを導出。
+  const offlineAlbums = useMemo(() => {
+    if (client || artist == null) return [] as Album[];
+    const tracks = Object.values(entries).map((e) => e.track);
+    return deriveArtistAlbums(tracks, artist, resolvedGrouping, downloadedIds);
+  }, [client, artist, resolvedGrouping, entries, downloadedIds]);
+  return client ? (query.data ?? []) : offlineAlbums;
 }
 
 /** 類似曲（trackId が null のときは無効）。 */

@@ -17,7 +17,7 @@ import type { LayoutChangeEvent, GestureResponderEvent } from "react-native";
 import { useRouter } from "expo-router";
 
 import { BRAND, PALETTE } from "@/constants/brand";
-import { type SimilarHit, type Track, formatDuration, trackTitle, trackArtist, useConnection, usePlayer } from "@crateforge/core";
+import { type SimilarHit, type Track, formatDuration, trackTitle, trackArtist, trackAlbumArtist, useConnection, usePlayer, useSettings } from "@crateforge/core";
 import Screen from "@/components/Screen";
 import Artwork from "@/components/Artwork";
 import IconButton from "@/components/IconButton";
@@ -228,6 +228,7 @@ function NowPlaying({
   sleepTimerMs,
   stopAtTrackEnd,
 }: NowPlayingProps) {
+  const router = useRouter();
   const toggle = usePlayer((s) => s.toggle);
   const next = usePlayer((s) => s.next);
   const prev = usePlayer((s) => s.prev);
@@ -237,6 +238,16 @@ function NowPlaying({
   const setRate = usePlayer((s) => s.setRate);
   const setSleepTimer = usePlayer((s) => s.setSleepTimer);
   const setStopAtTrackEnd = usePlayer((s) => s.setStopAtTrackEnd);
+
+  // アーティストページへ遷移（"Unknown Artist" のときは no-op）。
+  // 束ね方は設定に追従させ、artist ページの絞り込みと一致させる。
+  const artistGrouping = useSettings((s) => s.artistGrouping);
+  const artistName =
+    artistGrouping === "albumArtist" ? trackAlbumArtist(current) : trackArtist(current);
+  const handleArtistPress = () => {
+    if (artistName === "Unknown Artist") return;
+    router.push(`/artist/${encodeURIComponent(artistName)}`);
+  };
 
   const [showRatePicker, setShowRatePicker] = useState(false);
   const [showSleepPicker, setShowSleepPicker] = useState(false);
@@ -279,9 +290,41 @@ function NowPlaying({
       <Text style={styles.title} numberOfLines={2}>
         {trackTitle(current)}
       </Text>
-      <Text style={styles.artist} numberOfLines={1}>
-        {trackArtist(current)}
-      </Text>
+
+      {/* アーティスト名：タップでアーティストページへ。Unknown Artist のときは遷移しない */}
+      <Pressable
+        onPress={handleArtistPress}
+        disabled={artistName === "Unknown Artist"}
+        accessibilityRole="link"
+        accessibilityLabel={`アーティスト: ${artistName}`}
+        style={({ pressed }) => pressed && styles.pressed}
+      >
+        <Text
+          style={[
+            styles.artist,
+            artistName !== "Unknown Artist" && styles.artistTappable,
+          ]}
+          numberOfLines={1}
+        >
+          {artistName}
+        </Text>
+      </Pressable>
+
+      {/* アルバム名：存在するときのみ表示。タップでアルバムページへ */}
+      {current.album != null && (
+        <Pressable
+          onPress={() =>
+            router.push(`/album/${encodeURIComponent(current.album!)}`)
+          }
+          accessibilityRole="link"
+          accessibilityLabel={`アルバム: ${current.album}`}
+          style={({ pressed }) => pressed && styles.pressed}
+        >
+          <Text style={styles.album} numberOfLines={1}>
+            {current.album}
+          </Text>
+        </Pressable>
+      )}
 
       <SeekBar progress={progress} durationMs={durationMs} onSeek={seek} />
       <View style={styles.timeRow}>
@@ -617,6 +660,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     textAlign: "center",
     marginTop: 6,
+  },
+  // アーティスト名がタップ可能なとき、accent 色で下線を付けて示す
+  artistTappable: {
+    color: PALETTE.accent,
+    textDecorationLine: "underline",
+  },
+  // アルバム名（アーティストの下に控えめに表示）
+  album: {
+    color: PALETTE.textDim,
+    fontSize: 13,
+    textAlign: "center",
+    marginTop: 3,
+    textDecorationLine: "underline",
   },
 
   seekHit: {

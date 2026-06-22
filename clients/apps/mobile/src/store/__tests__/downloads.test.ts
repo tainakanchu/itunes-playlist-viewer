@@ -14,6 +14,15 @@ import {
 
 const downloadFileAsync = File.downloadFileAsync as jest.Mock;
 
+// 音源（= アートワーク以外）のダウンロード呼び出し回数。
+// downloadTrack は音源に加えてアルバムアート（/artwork?...&format=webp）も取得するため、
+// 「曲のダウンロード」を数えるときはアートワークの呼び出しを除外する。
+function audioDownloadCount(): number {
+  return downloadFileAsync.mock.calls.filter(
+    (c) => !String((c as unknown[])[0]).includes("/artwork"),
+  ).length;
+}
+
 function makeTrack(over: Partial<Track> = {}): Track {
   return {
     id: 1,
@@ -67,7 +76,14 @@ describe("useDownloads", () => {
 
     await useDownloads.getState().downloadTrack(track);
 
-    expect(downloadFileAsync).toHaveBeenCalledTimes(1);
+    // 音源は 1 回ダウンロードされる（アートワークは別途取得される）。
+    expect(audioDownloadCount()).toBe(1);
+    // アルバムアートの webp サムネもリクエストされる。
+    expect(
+      downloadFileAsync.mock.calls.some((c) =>
+        String((c as unknown[])[0]).includes("format=webp"),
+      ),
+    ).toBe(true);
     const entry = useDownloads.getState().entries[100];
     expect(entry).toBeTruthy();
     expect(entry.trackId).toBe(100);
@@ -90,9 +106,10 @@ describe("useDownloads", () => {
     setTestConnection({ token: "tok" });
     const track = makeTrack({ trackId: 100 });
     await useDownloads.getState().downloadTrack(track);
-    expect(downloadFileAsync).toHaveBeenCalledTimes(1);
+    expect(audioDownloadCount()).toBe(1);
     await useDownloads.getState().downloadTrack(track);
-    expect(downloadFileAsync).toHaveBeenCalledTimes(1);
+    // 2 回目は isDownloaded で早期 return するので音源 DL は増えない。
+    expect(audioDownloadCount()).toBe(1);
   });
 
   it("removeDownload がエントリを消す", async () => {
@@ -143,8 +160,8 @@ describe("useDownloads", () => {
     expect(url).toContain("/api/tracks");
     expect(url).toContain("album=My%20Album");
 
-    // 2 曲ともダウンロードされ記録される。
-    expect(downloadFileAsync).toHaveBeenCalledTimes(2);
+    // 2 曲ともダウンロードされ記録される（音源 2 回。アートは別途）。
+    expect(audioDownloadCount()).toBe(2);
     expect(useDownloads.getState().isDownloaded(11)).toBe(true);
     expect(useDownloads.getState().isDownloaded(12)).toBe(true);
     expect(useDownloads.getState().count()).toBe(2);
@@ -167,8 +184,8 @@ describe("useDownloads", () => {
     expect(dp.trackIds).toEqual([21, 22]);
     expect(useDownloads.getState().getDownloadedPlaylist(7)).toEqual(dp);
 
-    // 曲も実際にダウンロード・記録される。
-    expect(downloadFileAsync).toHaveBeenCalledTimes(2);
+    // 曲も実際にダウンロード・記録される（音源 2 回。アートは別途）。
+    expect(audioDownloadCount()).toBe(2);
     expect(useDownloads.getState().isDownloaded(21)).toBe(true);
     expect(useDownloads.getState().isDownloaded(22)).toBe(true);
   });
