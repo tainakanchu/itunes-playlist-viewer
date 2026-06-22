@@ -371,6 +371,53 @@
     .ctrl-btn:hover { background: var(--bg3); color: var(--accent); }
     .ctrl-btn:active { background: var(--bg4); }
     .ctrl-btn svg { display: block; }
+    /* shuffle / repeat のトグル ON 表示 */
+    .ctrl-btn.toggle-on { color: var(--accent); }
+    /* repeat one のバッジ (small "1") */
+    #repeat-badge {
+      position: absolute;
+      bottom: 2px; right: 2px;
+      font-size: 8px;
+      font-weight: 700;
+      line-height: 1;
+      color: var(--accent);
+      display: none;
+    }
+    #repeat-btn { position: relative; }
+
+    /* リモコン専用バー (PC 再生時のみ表示する音量・shuffle・repeat) */
+    #remote-controls {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      margin-top: 6px;
+    }
+    #remote-controls.show { display: flex; }
+    #vol-wrap { display: flex; align-items: center; gap: 6px; flex: 1; max-width: 200px; }
+    #vol-slider {
+      flex: 1;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--bg4);
+      outline: none;
+      cursor: pointer;
+    }
+    #vol-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+    }
+    #vol-slider::-moz-range-thumb {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      border: none;
+    }
 
     #play-pause-btn {
       background: var(--accent);
@@ -664,6 +711,20 @@
       </svg>
     </button>
   </div>
+  <!-- PC 再生 (リモコン) 時のみ表示する 音量 / shuffle / repeat -->
+  <div id="remote-controls">
+    <button class="ctrl-btn" id="shuffle-btn" aria-label="シャッフル" title="シャッフル">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+    </button>
+    <button class="ctrl-btn" id="repeat-btn" aria-label="リピート" title="リピート">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
+      <span id="repeat-badge">1</span>
+    </button>
+    <div id="vol-wrap">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--text-muted)" style="flex-shrink:0"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+      <input id="vol-slider" type="range" min="0" max="100" value="100" step="1" aria-label="音量" />
+    </div>
+  </div>
 </div>
 
 <!-- Audio element (local mode) -->
@@ -758,6 +819,8 @@
   let isSeeking = false;
   let remotePoller = null;
   let activePlaylistId = null; // null = all tracks
+  let remoteShuffle = false;
+  let remoteRepeat = "off"; // "off" | "all" | "one"
 
   /* ── DOM refs ── */
   const audio        = document.getElementById("audio");
@@ -782,18 +845,77 @@
   const sidebarToggle  = document.getElementById("sidebar-toggle");
   const sidebar        = document.getElementById("sidebar");
   const sidebarOverlay = document.getElementById("sidebar-overlay");
+  const remoteControls = document.getElementById("remote-controls");
+  const shuffleBtn     = document.getElementById("shuffle-btn");
+  const repeatBtn      = document.getElementById("repeat-btn");
+  const repeatBadge    = document.getElementById("repeat-badge");
+  const volSlider      = document.getElementById("vol-slider");
 
   /* ── Mode toggle ── */
   modeToggle.addEventListener("click", function () {
     remoteMode = !remoteMode;
     modeLabel.textContent = remoteMode ? "PC で再生" : "この端末";
     modeToggle.classList.toggle("remote", remoteMode);
+    // 音量/shuffle/repeat は PC 再生 (リモコン) 時のみ表示する。
+    remoteControls.classList.toggle("show", remoteMode);
     if (remoteMode) {
       audio.pause();
       startRemotePoller();
     } else {
       stopRemotePoller();
     }
+  });
+
+  /* ── Remote: shuffle / repeat / volume ── */
+  function updateShuffleUI() {
+    shuffleBtn.classList.toggle("toggle-on", remoteShuffle);
+  }
+
+  function updateRepeatUI() {
+    repeatBtn.classList.toggle("toggle-on", remoteRepeat !== "off");
+    repeatBadge.style.display = remoteRepeat === "one" ? "block" : "none";
+  }
+
+  shuffleBtn.addEventListener("click", async function () {
+    if (!remoteMode) return;
+    remoteShuffle = !remoteShuffle;
+    updateShuffleUI();
+    try {
+      await apiFetch("/api/remote/shuffle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ on: remoteShuffle })
+      });
+    } catch (e) { /* toast handled */ }
+  });
+
+  repeatBtn.addEventListener("click", async function () {
+    if (!remoteMode) return;
+    // off → all → one → off の順で巡回。
+    remoteRepeat = remoteRepeat === "off" ? "all" : (remoteRepeat === "all" ? "one" : "off");
+    updateRepeatUI();
+    try {
+      await apiFetch("/api/remote/repeat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: remoteRepeat })
+      });
+    } catch (e) { /* toast handled */ }
+  });
+
+  // 連続ドラッグ中の連投を抑えるための簡易デバウンス。
+  let volTimer = null;
+  volSlider.addEventListener("input", function () {
+    if (!remoteMode) return;
+    const vol = (parseInt(volSlider.value, 10) || 0) / 100;
+    clearTimeout(volTimer);
+    volTimer = setTimeout(function () {
+      apiFetch("/api/remote/volume", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ volume: vol })
+      }).catch(function () {});
+    }, 120);
   });
 
   /* ── Mobile sidebar ── */
@@ -1277,6 +1399,19 @@
     if (!isSeeking) {
       seekSlider.max   = 1000;
       seekSlider.value = dur > 0 ? Math.round((pos / dur) * 1000) : 0;
+    }
+
+    // volume / shuffle / repeat を UI に反映 (音量スライダー操作中は上書きしない)。
+    if (typeof state.shuffle === "boolean") {
+      remoteShuffle = state.shuffle;
+      updateShuffleUI();
+    }
+    if (typeof state.repeat === "string") {
+      remoteRepeat = state.repeat;
+      updateRepeatUI();
+    }
+    if (typeof state.volume === "number" && document.activeElement !== volSlider) {
+      volSlider.value = Math.round(state.volume * 100);
     }
   }
 

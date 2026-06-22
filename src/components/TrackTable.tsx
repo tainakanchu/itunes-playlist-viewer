@@ -284,9 +284,10 @@ export function TrackTable({ onLoadMore, onTracksChanged, onEditTrack, onConvert
         await playbackApi.playTrack(track.trackId);
       } catch (err) {
         console.error("Failed to play:", err);
+        pushToast("error", `『${track.name || "(unknown)"}』を再生できませんでした: ${err}`);
       }
     },
-    [tracks],
+    [tracks, pushToast],
   );
 
   const handleContextMenu = useCallback(
@@ -560,7 +561,11 @@ export function TrackTable({ onLoadMore, onTracksChanged, onEditTrack, onConvert
         playbackApi
           .setQueue(ids, Math.max(0, startIndex))
           .then(() => playbackApi.playTrack(track!.trackId))
-          .catch((err) => console.error("Failed to play:", err));
+          .catch((err) => {
+            console.error("Failed to play:", err);
+            // useStore.getState() 経由でトーストを出す（effect クロージャ内のため）。
+            useStore.getState().pushToast("error", `『${track!.name || "(unknown)"}』を再生できませんでした: ${err}`);
+          });
         return;
       }
 

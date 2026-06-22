@@ -766,13 +766,36 @@ pub async fn remote_get_queue(State(state): State<ApiState>) -> Result<Json<Valu
 }
 
 /// `GET /api/remote/state` — 現在の再生状態を返す。
-pub async fn remote_get_state(State(state): State<ApiState>) -> Result<Json<crate::models::PlaybackState>, ApiError> {
+/// `PlaybackState` のフィールド (isPlaying/currentTrackId/positionMs/durationMs) に加え、
+/// Web UI が音量スライダー・shuffle/repeat トグルを初期反映できるよう
+/// volume/shuffle/repeat も含める。
+pub async fn remote_get_state(State(state): State<ApiState>) -> Result<Json<Value>, ApiError> {
     let app = state.app.as_ref().ok_or_else(|| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "no app handle"))?;
     let player = app.state::<std::sync::Mutex<crate::audio::AudioPlayer>>();
-    let ps = player.lock()
-        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        .get_state();
-    Ok(Json(ps))
+    let guard = player.lock()
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let ps = guard.get_state();
+    let volume = guard.volume();
+    let shuffle = guard.shuffle();
+    let repeat = repeat_mode_str(guard.repeat());
+    Ok(Json(json!({
+        "isPlaying": ps.is_playing,
+        "currentTrackId": ps.current_track_id,
+        "positionMs": ps.position_ms,
+        "durationMs": ps.duration_ms,
+        "volume": volume,
+        "shuffle": shuffle,
+        "repeat": repeat,
+    })))
+}
+
+/// `RepeatMode` を Web API の文字列表現 ("off"|"all"|"one") に変換する。
+fn repeat_mode_str(mode: crate::audio::RepeatMode) -> &'static str {
+    match mode {
+        crate::audio::RepeatMode::Off => "off",
+        crate::audio::RepeatMode::All => "all",
+        crate::audio::RepeatMode::One => "one",
+    }
 }
 
 /// `POST /api/remote/play` のボディ。
@@ -917,31 +940,94 @@ pub async fn remote_set_queue(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// `PATCH /api/tracks/:trackId` — 指定フィールドを置換 (未指定は据え置き)、
-/// 更新後の現在値を実ファイルのタグへも書き戻す。対象が存在しなければ 404。
-/// 返り値 `{ "track": Track, "fileWriteFailed": bool }`。
-pub async fn patch_track(
+/// `POST /api/remote/volume` のボディ。
+#[derive(serde::Deserialize)]
+pub struct RemoteVolumeBody {
+    pub volume: f32,
+}
+
+/// `POST /api/remote/volume` — 音量を設定する (0.0–1.0、内部でクランプ)。
+pub async fn remote_volume(
     State(state): State<ApiState>,
-    Path(track_id): Path<i64>,
-    ExtractJson(edit): ExtractJson<crate::models::TrackEdit>,
-) -> Result<Json<Value>, ApiError> {
-    let db = state.db()?;
-    db.update_track(track_id, &edit)?;
-    // 更新後の Track を取得。存在しない id は 0 行更新なので空 → 404。
+    ExtractJson(body): ExtractJson<RemoteVolumeBody>,
+) -> Result<StatusCode, ApiError> {
+    let app = state.app.as_ref().ok_or_else(|| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "no app handle"))?;
+    app.state::<std::sync::Mutex<crate::audio::AudioPlayer>>()
+        .lock()
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .set_volume(body.volume);
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// `POST /api/remote/shuffle` のボディ。
+#[derive(serde::Deserialize)]
+pub struct RemoteShuffleBody {
+    pub on: bool,
+}
+
+/// `POST /api/remote/shuffle` — シャッフルの ON/OFF を設定する。
+pub async fn remote_shuffle(
+    State(state): State<ApiState>,
+    ExtractJson(body): ExtractJson<RemoteShuffleBody>,
+) -> Result<StatusCode, ApiError> {
+    let app = state.app.as_ref().ok_or_else(|| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "no app handle"))?;
+    app.state::<std::sync::Mutex<crate::audio::AudioPlayer>>()
+        .lock()
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .set_shuffle(body.on);
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// `POST /api/remote/repeat` のボディ。
+#[derive(serde::Deserialize)]
+pub struct RemoteRepeatBody {
+    pub mode: String,
+}
+
+/// `POST /api/remote/repeat` — リピートモードを設定する ("off"|"all"|"one")。
+pub async fn remote_repeat(
+    State(state): State<ApiState>,
+    ExtractJson(body): ExtractJson<RemoteRepeatBody>,
+) -> Result<StatusCode, ApiError> {
+    let app = state.app.as_ref().ok_or_else(|| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "no app handle"))?;
+    let mode = match body.mode.as_str() {
+        "off" => crate::audio::RepeatMode::Off,
+        "all" => crate::audio::RepeatMode::All,
+        "one" => crate::audio::RepeatMode::One,
+        other => return Err(ApiError::new(StatusCode::BAD_REQUEST, format!("unknown repeat mode: {}", other))),
+    };
+    app.state::<std::sync::Mutex<crate::audio::AudioPlayer>>()
+        .lock()
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .set_repeat(mode);
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// 1 曲に編集を適用するコア処理 (PATCH 単体・一括の両方から呼ぶ)。
+/// DB を更新し、更新後の現在値を実ファイルのタグへ書き戻す。
+/// 戻り値は `Some((更新後 Track, ファイル書き込み失敗か))`。
+/// 対象が存在しない場合 (0 行更新) は `None`。
+fn apply_track_edit(
+    db: &crate::db::Database,
+    track_id: i64,
+    edit: &crate::models::TrackEdit,
+) -> Result<Option<(Track, bool)>, ApiError> {
+    db.update_track(track_id, edit)?;
+    // 更新後の Track を取得。存在しない id は 0 行更新なので空 → None。
     let track: Track = match db.get_tracks_by_ids(&[track_id])?.into_iter().next() {
         Some(t) => t,
-        None => return Err(ApiError::not_found("track not found")),
+        None => return Ok(None),
     };
-    let track_val = serde_json::to_value(&track)
-        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     // 現在の DB 値を実ファイルのタグへ書き戻す (GUI の update_track と同様、他アプリにも反映)。
     let file_failed = {
         let w = crate::organizer::TagWrite {
             title: track.name.as_deref(),
             artist: track.artist.as_deref(),
             album_artist: track.album_artist.as_deref(),
+            composer: track.composer.as_deref(),
             album: track.album.as_deref(),
             genre: track.genre.as_deref(),
+            comments: track.comments.as_deref(),
             year: track.year,
             track_number: track.track_number,
             track_count: track.track_count,
@@ -951,8 +1037,66 @@ pub async fn patch_track(
         };
         writeback(track.location_path.as_deref(), &w)
     };
+    Ok(Some((track, file_failed)))
+}
+
+/// `PATCH /api/tracks/:trackId` — 指定フィールドを置換 (未指定は据え置き)、
+/// 更新後の現在値を実ファイルのタグへも書き戻す。対象が存在しなければ 404。
+/// 返り値 `{ "track": Track, "fileWriteFailed": bool }`。
+pub async fn patch_track(
+    State(state): State<ApiState>,
+    Path(track_id): Path<i64>,
+    ExtractJson(edit): ExtractJson<crate::models::TrackEdit>,
+) -> Result<Json<Value>, ApiError> {
+    let db = state.db()?;
+    let (track, file_failed) = match apply_track_edit(&db, track_id, &edit)? {
+        Some(r) => r,
+        None => return Err(ApiError::not_found("track not found")),
+    };
+    let track_val = serde_json::to_value(&track)
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     state.notify_library_changed(None);
     Ok(Json(json!({ "track": track_val, "fileWriteFailed": file_failed })))
+}
+
+/// `PATCH /api/tracks` のボディ。`trackIds` の各曲に同一の `edit` を一括適用する。
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BulkTrackEdit {
+    pub track_ids: Vec<i64>,
+    pub edit: crate::models::TrackEdit,
+}
+
+/// `PATCH /api/tracks` — 複数曲に同一の編集を一括適用する。
+/// 各 trackId に対し `patch_track` と同一のロジック (DB 更新＋ファイル書き戻し) を適用。
+/// 返り値 `{ "updated": n, "fileWriteFailed": [trackId,...], "notFound": [trackId,...] }`。
+pub async fn patch_tracks_bulk(
+    State(state): State<ApiState>,
+    ExtractJson(body): ExtractJson<BulkTrackEdit>,
+) -> Result<Json<Value>, ApiError> {
+    let db = state.db()?;
+    let mut updated = 0_i64;
+    let mut file_write_failed: Vec<i64> = Vec::new();
+    let mut not_found: Vec<i64> = Vec::new();
+    for &id in &body.track_ids {
+        match apply_track_edit(&db, id, &body.edit)? {
+            Some((_, file_failed)) => {
+                updated += 1;
+                if file_failed {
+                    file_write_failed.push(id);
+                }
+            }
+            None => not_found.push(id),
+        }
+    }
+    if updated > 0 {
+        state.notify_library_changed(None);
+    }
+    Ok(Json(json!({
+        "updated": updated,
+        "fileWriteFailed": file_write_failed,
+        "notFound": not_found,
+    })))
 }
 
 #[cfg(test)]

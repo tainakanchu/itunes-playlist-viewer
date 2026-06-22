@@ -256,8 +256,10 @@ pub struct TagWrite<'a> {
     pub title: Option<&'a str>,
     pub artist: Option<&'a str>,
     pub album_artist: Option<&'a str>,
+    pub composer: Option<&'a str>,
     pub album: Option<&'a str>,
     pub genre: Option<&'a str>,
+    pub comments: Option<&'a str>,
     pub year: Option<i64>,
     pub track_number: Option<i64>,
     pub track_count: Option<i64>,
@@ -296,6 +298,22 @@ pub fn write_tags(path: &Path, w: &TagWrite) -> Result<(), String> {
     if let Some(v) = w.album_artist {
         // Accessor に album_artist が無いので ItemKey で直接挿入。
         tag.insert_text(ItemKey::AlbumArtist, v.to_string());
+    }
+    if let Some(v) = w.composer {
+        // Accessor が無いので ItemKey で直接操作。空文字はキーごと除去 (クリア)。
+        if v.is_empty() {
+            tag.remove_key(&ItemKey::Composer);
+        } else {
+            tag.insert_text(ItemKey::Composer, v.to_string());
+        }
+    }
+    if let Some(v) = w.comments {
+        // comments も同様。空文字はキーごと除去 (クリア)。
+        if v.is_empty() {
+            tag.remove_key(&ItemKey::Comment);
+        } else {
+            tag.insert_text(ItemKey::Comment, v.to_string());
+        }
     }
     if let Some(y) = w.year {
         if y > 0 {

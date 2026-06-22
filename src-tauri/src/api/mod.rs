@@ -238,7 +238,10 @@ pub fn router(state: ApiState) -> Router {
         .route("/favicon.ico", get(serve_favicon))
         // 読み取り
         .route("/api/health", get(handlers::health))
-        .route("/api/tracks", get(handlers::list_tracks))
+        .route(
+            "/api/tracks",
+            get(handlers::list_tracks).patch(handlers::patch_tracks_bulk),
+        )
         .route("/api/tracks/by-ids", post(handlers::tracks_by_ids))
         // GET と PATCH を 1 つの MethodRouter に合流させる (axum 0.8 は同一パスを
         // 別 .route で重ねると panic するため)。PATCH ハンドラは下の「書き込み」節参照。
@@ -305,6 +308,9 @@ pub fn router(state: ApiState) -> Router {
         .route("/api/remote/prev", post(handlers::remote_prev))
         .route("/api/remote/seek", post(handlers::remote_seek))
         .route("/api/remote/set-queue", post(handlers::remote_set_queue))
+        .route("/api/remote/volume", post(handlers::remote_volume))
+        .route("/api/remote/shuffle", post(handlers::remote_shuffle))
+        .route("/api/remote/repeat", post(handlers::remote_repeat))
         // 認証ミドルウェアを全ルートに適用 (with_state の前に route_layer)。
         .route_layer(axum::middleware::from_fn_with_state(state.clone(), auth_guard))
         .with_state(state)
@@ -1079,6 +1085,85 @@ mod tests {
         assert_eq!(body["error"], "track not found");
     }
 
+    // ===== メタデータ書き込み: PATCH /api/tracks 一括適用 (#41) =====
+    #[tokio::test]
+    async fn case_patch_tracks_bulk() {
+        let (_dir, app) = setup();
+        // 複数 trackId に rating / compilation を一括適用。9999 は存在しない。
+        let (status, body) = req(
+            app.clone(),
+            "PATCH",
+            "/api/tracks",
+            Some(json!({
+                "trackIds": [1, 2, 9999],
+                "edit": { "rating": 100, "compilation": true }
+            })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        // 1, 2 は更新、9999 は notFound。location_path 無しなので書き込み失敗は空。
+        assert_eq!(body["updated"], 2);
+        assert_eq!(body["fileWriteFailed"], json!([]));
+        assert_eq!(body["notFound"], json!([9999]));
+
+        // 各曲が実際に更新されている。
+        for id in [1, 2] {
+            let (_, track) = req(app.clone(), "GET", &format!("/api/tracks/{id}"), None).await;
+            assert_eq!(track["rating"], 100, "track {id} rating");
+            assert_eq!(track["compilation"], true, "track {id} compilation");
+        }
+    }
+
+    // ===== メタデータ書き込み: PATCH 一括で composer/comments を DB 反映 (#41-A) =====
+    #[tokio::test]
+    async fn case_patch_tracks_bulk_composer_comments() {
+        let (_dir, app) = setup();
+        let (status, body) = req(
+            app.clone(),
+            "PATCH",
+            "/api/tracks",
+            Some(json!({
+                "trackIds": [3],
+                "edit": { "composer": "Tatsuro", "comments": "warm-up" }
+            })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["updated"], 1);
+
+        let (_, track) = req(app, "GET", "/api/tracks/3", None).await;
+        assert_eq!(track["composer"], "Tatsuro");
+        assert_eq!(track["comments"], "warm-up");
+    }
+
+    // ===== メタデータ書き込み: PATCH 単体で disabled / playCount を DB 反映 (#41-B) =====
+    #[tokio::test]
+    async fn case_patch_disabled_play_count() {
+        let (_dir, app) = setup();
+        let (status, patched) = req(
+            app.clone(),
+            "PATCH",
+            "/api/tracks/1",
+            Some(json!({ "disabled": true, "playCount": 5, "skipCount": 2 })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(patched["track"]["disabled"], true);
+        assert_eq!(patched["track"]["playCount"], 5);
+        assert_eq!(patched["track"]["skipCount"], 2);
+
+        // playCount を null で明示クリアできる。
+        let (status, patched) = req(
+            app,
+            "PATCH",
+            "/api/tracks/1",
+            Some(json!({ "playCount": null })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(patched["track"]["playCount"].is_null());
+    }
+
     // ===== ケース: GET /api/playlists/{playlistId} — メタ取得 =====
     #[tokio::test]
     async fn case_get_playlist_meta() {
@@ -1128,6 +1213,41 @@ mod tests {
         let (status, body) = req(app, "GET", "/api/playlists/999999", None).await;
         assert_eq!(status, StatusCode::NOT_FOUND);
         assert_eq!(body["error"], "playlist not found");
+    }
+
+    // ===== ケース: 新規 remote エンドポイント (volume/shuffle/repeat) の登録 =====
+    // テスト用 Router は app=None なので各ハンドラは「no app handle」で 500 を返す。
+    // ここでは 404 (未登録) ではなく到達できる (登録済み) ことを確認する。
+    #[tokio::test]
+    async fn case_remote_volume_shuffle_repeat_registered() {
+        let (_dir, app) = setup();
+
+        let (s1, _) = req(
+            app.clone(),
+            "POST",
+            "/api/remote/volume",
+            Some(json!({ "volume": 0.5 })),
+        )
+        .await;
+        assert_eq!(s1, StatusCode::INTERNAL_SERVER_ERROR);
+
+        let (s2, _) = req(
+            app.clone(),
+            "POST",
+            "/api/remote/shuffle",
+            Some(json!({ "on": true })),
+        )
+        .await;
+        assert_eq!(s2, StatusCode::INTERNAL_SERVER_ERROR);
+
+        let (s3, _) = req(
+            app,
+            "POST",
+            "/api/remote/repeat",
+            Some(json!({ "mode": "all" })),
+        )
+        .await;
+        assert_eq!(s3, StatusCode::INTERNAL_SERVER_ERROR);
     }
 
     // ===== is_public_path ヘルパのユニットテスト =====

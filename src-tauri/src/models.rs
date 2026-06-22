@@ -122,6 +122,15 @@ pub struct TrackEdit {
     pub disc_count: Option<Option<i64>>,
     /// コンピレーション・フラグ。`Some(true/false)` で設定、`None` で変更なし。
     pub compilation: Option<bool>,
+    /// 無効フラグ (チェックを外した曲)。`Some(true/false)` で設定、`None` で変更なし。
+    /// DB のみ更新 (ファイルタグには書かない)。
+    pub disabled: Option<bool>,
+    /// 再生回数。`Some(Some(v))` で設定、`Some(None)` で NULL、`None` で変更なし。DB のみ。
+    #[serde(default, deserialize_with = "double_option")]
+    pub play_count: Option<Option<i64>>,
+    /// スキップ回数。`Some(Some(v))` で設定、`Some(None)` で NULL、`None` で変更なし。DB のみ。
+    #[serde(default, deserialize_with = "double_option")]
+    pub skip_count: Option<Option<i64>>,
 }
 
 /// `null` を「明示的にクリア」と扱うために、二重 Option を必要とする。

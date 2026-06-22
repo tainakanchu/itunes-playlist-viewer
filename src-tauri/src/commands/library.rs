@@ -137,8 +137,10 @@ pub fn update_track(app: AppHandle, track_id: i64, edits: TrackEdit) -> Result<(
     let name = edits.name.clone().or(before.name.clone());
     let artist = edits.artist.clone().or(before.artist.clone());
     let album_artist = edits.album_artist.clone().or(before.album_artist.clone());
+    let composer = edits.composer.clone().or(before.composer.clone());
     let album = edits.album.clone().or(before.album.clone());
     let genre = edits.genre.clone().or(before.genre.clone());
+    let comments = edits.comments.clone().or(before.comments.clone());
     let year = resolve_int(&edits.year, before.year);
     let track_number = resolve_int(&edits.track_number, before.track_number);
     let track_count = resolve_int(&edits.track_count, before.track_count);
@@ -152,8 +154,10 @@ pub fn update_track(app: AppHandle, track_id: i64, edits: TrackEdit) -> Result<(
         title: name.as_deref(),
         artist: artist.as_deref(),
         album_artist: album_artist.as_deref(),
+        composer: composer.as_deref(),
         album: album.as_deref(),
         genre: genre.as_deref(),
+        comments: comments.as_deref(),
         year,
         track_number,
         track_count,

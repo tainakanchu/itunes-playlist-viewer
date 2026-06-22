@@ -54,6 +54,14 @@ function groupTracks(tracks: Track[], mode: Group): GroupedItem[] {
     if (existing) existing.tracks.push(t);
     else map.set(key, { key, label, sublabel, seed, tracks: [t] });
   }
+  // 各グループ内の曲を disc 番号昇順 → track 番号昇順に並べ替え。
+  for (const g of map.values()) {
+    g.tracks.sort(
+      (a, b) =>
+        (a.discNumber ?? 0) - (b.discNumber ?? 0) ||
+        (a.trackNumber ?? 0) - (b.trackNumber ?? 0),
+    );
+  }
   return Array.from(map.values()).sort((a, b) =>
     a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
   );

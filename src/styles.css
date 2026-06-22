@@ -132,14 +132,11 @@ input {
   padding: 15px 15px 11px;
 }
 
-.cb-logo {
+.cb-logo-img {
   width: 24px;
   height: 24px;
   border-radius: 7px;
-  background: var(--ac);
-  display: grid;
-  place-items: center;
-  color: var(--on-ac);
+  object-fit: cover;
   flex-shrink: 0;
 }
 

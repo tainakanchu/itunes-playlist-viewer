@@ -110,6 +110,11 @@ impl AudioPlayer {
 
         let path = Path::new(file_path);
         if !path.exists() {
+            // どの曲が何で再生失敗したかを crateforge.log に残す (#67)。
+            crate::logging::write_line(
+                "error",
+                &format!("playback failed: file not found ({})", file_path),
+            );
             return Err(format!("File not found: {}", file_path));
         }
 
@@ -134,9 +139,23 @@ impl AudioPlayer {
         }));
         let (sink, actual_duration) = match built {
             Ok(Ok(v)) => v,
-            Ok(Err(e)) => return Err(e),
+            Ok(Err(e)) => {
+                // デコード/ファイルオープン失敗。どの曲が何で失敗したかを残す (#67)。
+                crate::logging::write_line(
+                    "error",
+                    &format!("playback failed: {} ({})", e, file_path),
+                );
+                return Err(e);
+            }
             // デコーダ等が panic した場合: その曲だけ失敗扱いにしてアプリは継続。
-            Err(_) => return Err(format!("Failed to play (decoder crashed): {}", file_path)),
+            // panic 本体は panic フックが既に記録済みなので、ここでは曲のパスを補足する (#67)。
+            Err(_) => {
+                crate::logging::write_line(
+                    "error",
+                    &format!("playback failed: decoder crashed ({})", file_path),
+                );
+                return Err(format!("Failed to play (decoder crashed): {}", file_path));
+            }
         };
 
         self.sink = Some(sink);

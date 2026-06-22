@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { useStore } from "../store/useStore";
 import * as playlistsApi from "../api/playlists";
 import { Icon } from "./Icon";
+import appIcon from "../assets/app-icon.png";
 import type { Playlist, ViewMode } from "../types";
 
 interface SidebarProps {
@@ -395,9 +396,8 @@ export function Sidebar({ onPlaylistsChanged, onEditSmart }: SidebarProps) {
   return (
     <aside className="cb-side">
       <div className="cb-brand">
-        <div className="cb-logo">
-          <Icon name="layers" size={14} />
-        </div>
+        {/* アプリの正規アイコン（src-tauri/icons と同じ素材）を表示する。 */}
+        <img className="cb-logo-img" src={appIcon} width={24} height={24} alt="Crateforge" />
         <b>Crateforge</b>
       </div>
 

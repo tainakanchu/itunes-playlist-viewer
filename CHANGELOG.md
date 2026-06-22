@@ -10,6 +10,40 @@ Each release is documented in both Japanese and English.
 
 ## [Unreleased]
 
+## [v0.8.4] - 2026-06-22
+
+### 日本語
+
+#### 修正
+- **アルバムを開いた時の曲順を正す**：ディスク番号→トラック番号順で並べるように（従来は名前順になっていた）。デスクトップのアルバム表示とモバイルのオンライン取得の両方を修正。(#65)
+- **左上のアイコンを正規アプリアイコンに**：サイドバー上部のロゴが汎用アイコンだったのを、アプリの正規アイコンに差し替え。(#59)
+
+#### 追加
+- **iPad 等のリモコン Web UI を強化**：内蔵 API サーバーが配信するリモコン（`http://PC-IP:PORT/`）に音量スライダー・シャッフル・リピートのトグルを追加。`/api/remote/state` が音量/シャッフル/リピートも返すように。(#13)
+- **曲メタデータ書き込み API の拡張**：`PATCH /api/tracks/{id}` の composer/comments を実ファイルのタグにも反映（従来は DB だけ）。`disabled`/`playCount`/`skipCount`（DB のみ）を追加。複数曲一括の `PATCH /api/tracks`（`{trackIds, edit}`）を新設。(#41)
+
+#### 改善
+- **再生失敗の可視化**：曲の再生に失敗したらトーストで通知し、失敗内容（ファイル不在・デコード失敗・デコーダのクラッシュ）をログ（crateforge.log）に記録するように。どの曲がなぜ再生できないか把握しやすく。(#67) ※非対応形式（WMA/.m4p 等）の ffmpeg フォールバックは別途対応予定。
+
+#### モバイル（OTA 配信）
+- アルバムを開いた時の曲順をディスク番号→トラック番号順に修正（オンライン時）。(#65)
+
+### English
+
+#### Fixed
+- **Correct album track order**: tracks now sort by disc number → track number (previously alphabetical). Fixed on both desktop album view and mobile online fetch. (#65)
+- **Real app icon in the top-left**: the sidebar logo now uses the app's real icon instead of a generic one. (#59)
+
+#### Added
+- **Richer remote web UI (for iPad etc.)**: the built-in server's remote (`http://PC-IP:PORT/`) gains a volume slider and shuffle/repeat toggles; `/api/remote/state` now also reports volume/shuffle/repeat. (#13)
+- **Expanded track-metadata write API**: `PATCH /api/tracks/{id}` now writes composer/comments to the actual file tags (was DB-only); added `disabled`/`playCount`/`skipCount` (DB-only); added bulk `PATCH /api/tracks` (`{trackIds, edit}`). (#41)
+
+#### Improved
+- **Playback-failure visibility**: a failed track now shows a toast and logs the reason (missing file / decode failure / decoder crash) to crateforge.log, making it clear which track failed and why. (#67) An ffmpeg fallback for unsupported formats (WMA/.m4p) is planned separately.
+
+#### Mobile (OTA)
+- Fixed album track order to disc → track number when online. (#65)
+
 ## [v0.8.3] - 2026-06-22
 
 ### 日本語

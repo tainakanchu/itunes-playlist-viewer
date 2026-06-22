@@ -481,9 +481,16 @@ impl Database {
         set_int_clear!(track_count, "track_count");
         set_int_clear!(disc_number, "disc_number");
         set_int_clear!(disc_count, "disc_count");
+        // play_count / skip_count は DB のみ (Some(None) で NULL クリア)。
+        set_int_clear!(play_count, "play_count");
+        set_int_clear!(skip_count, "skip_count");
 
         if let Some(v) = edits.compilation {
             sets.push("compilation = ?");
+            values.push(rusqlite::types::Value::Integer(if v { 1 } else { 0 }));
+        }
+        if let Some(v) = edits.disabled {
+            sets.push("disabled = ?");
             values.push(rusqlite::types::Value::Integer(if v { 1 } else { 0 }));
         }
 
