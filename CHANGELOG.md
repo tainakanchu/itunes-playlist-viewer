@@ -10,6 +10,36 @@ Each release is documented in both Japanese and English.
 
 ## [Unreleased]
 
+## [v0.8.6] - 2026-06-23
+
+### 日本語
+
+#### デスクトップ
+- **ドラッグ&ドロップ取り込み**：エクスプローラーから曲ファイルをウィンドウにドロップしてライブラリへ追加（#70）。
+- **アルバム / カバービューのアコーディオン化**：同時に開くのは 1 つだけにして見通しを改善（#68）。
+- **検索の高速化**：fold 済みの `search_text` 列を使って検索を高速化。
+
+#### モバイル
+- **アーティスト起点の導線**：アーティストからアルバムを辿る導線と、アルバムの並び順を追加（#69）。
+- **再生失敗の可視化**：再生失敗を通知して自動スキップし、stream 失敗をログに記録（#67）。
+
+#### ドキュメント
+- **使い方ドキュメントの是正・多言語化**：実装と突き合わせて事実誤りを修正し、英語・繁體中文を全ページ翻訳。実装との乖離を機械検出するドリフトチェック（`check-docs`）を CI に追加（#72）。
+
+### English
+
+#### Desktop
+- **Drag & drop import**: drop audio files from the file explorer onto the window to add them to the library (#70).
+- **Accordion album / cover view**: only one album expands at a time for a cleaner view (#68).
+- **Faster search**: search now uses a pre-folded `search_text` column.
+
+#### Mobile
+- **Artist-centric navigation**: navigate from an artist to their albums, with album ordering (#69).
+- **Playback failure visibility**: failed playback is surfaced via a notification and auto-skip, and stream failures are logged (#67).
+
+#### Docs
+- **Docs fact-check & localization**: corrected factual errors against the implementation and fully translated the English / Traditional Chinese pages; added a drift check (`check-docs`) to CI that mechanically detects docs/implementation mismatches (#72).
+
 ## [v0.8.5] - 2026-06-22
 
 ### 日本語
