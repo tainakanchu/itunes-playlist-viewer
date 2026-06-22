@@ -54,6 +54,7 @@ export default function App() {
     sortField,
     sortOrder,
     displayMode,
+    rightRailVisible,
     setAnalyses,
     setAnalysisActive,
   } = useStore();
@@ -490,7 +491,7 @@ export default function App() {
   const isAlbumView = viewMode === "albums" || viewMode === "artists";
 
   return (
-    <div className="app">
+    <div className={"app" + (rightRailVisible ? "" : " no-rail")}>
       <Sidebar
         onPlaylistsChanged={triggerReload}
         onEditSmart={(id, name) => setSmartEditor({ playlistId: id, name })}
@@ -524,7 +525,7 @@ export default function App() {
           />
         )}
       </div>
-      <RightRail onPlaylistsChanged={triggerReload} />
+      {rightRailVisible && <RightRail onPlaylistsChanged={triggerReload} />}
       <PlayerBar />
       <RipDialog open={ripOpen} onClose={() => setRipOpen(false)} onLibraryChanged={triggerReload} />
       <RulesPanel open={rulesOpen} onClose={() => setRulesOpen(false)} onLibraryChanged={triggerReload} />

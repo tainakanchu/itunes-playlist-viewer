@@ -10,6 +10,9 @@ interface ColumnPickerProps {
 
 /// ツールバー右上のポップオーバー。表示列のドラッグ並べ替え / トグル、
 /// 行高スライダー、アートワークサイズ、Reset を提供。状態は store に即時反映。
+///
+/// 並べ替えは HTML5 DnD ではなく PointerEvent ベース。webview の draggable は
+/// 不安定（ドラッグが始まらない / drop が落ちる）なので、pointer capture で確実化する。
 export function ColumnPicker({ onClose }: ColumnPickerProps) {
   const {
     fields,
@@ -22,25 +25,49 @@ export function ColumnPicker({ onClose }: ColumnPickerProps) {
     resetColumns,
   } = useStore();
 
+  const listRef = useRef<HTMLDivElement>(null);
+  // ドラッグ中の元インデックス。pointerdown で記録し、move 中に reorder する。
   const dragIdx = useRef<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
 
   const available = ALL_FIELDS.filter((id) => !fields.includes(id));
 
-  const onDragStart = (i: number) => {
+  const onItemPointerDown = (e: React.PointerEvent, i: number) => {
+    if (e.button !== 0) return;
     dragIdx.current = i;
-  };
-  const onDragOver = (e: React.DragEvent, i: number) => {
-    e.preventDefault();
-    const from = dragIdx.current;
-    if (from === null || from === i) return;
     setOverIdx(i);
-    reorderFields(from, i);
-    dragIdx.current = i;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    document.body.style.userSelect = "none";
   };
-  const onDragEnd = () => {
+  // pointer Y から表示列リスト内のホバー行を求め、必要なら即座に reorder する。
+  const onItemPointerMove = (e: React.PointerEvent) => {
+    const from = dragIdx.current;
+    if (from === null) return;
+    const list = listRef.current;
+    if (!list) return;
+    const rows = Array.from(
+      list.querySelectorAll<HTMLElement>("[data-field-index]"),
+    );
+    let target = from;
+    for (const row of rows) {
+      const r = row.getBoundingClientRect();
+      if (e.clientY >= r.top && e.clientY <= r.bottom) {
+        target = Number(row.dataset.fieldIndex);
+        break;
+      }
+      // リスト末尾より下なら最後の行を狙う。
+      if (e.clientY > r.bottom) target = Number(row.dataset.fieldIndex);
+    }
+    if (target !== from) {
+      reorderFields(from, target);
+      dragIdx.current = target;
+      setOverIdx(target);
+    }
+  };
+  const onItemPointerUp = () => {
     dragIdx.current = null;
     setOverIdx(null);
+    document.body.style.userSelect = "";
   };
 
   return (
@@ -49,20 +76,24 @@ export function ColumnPicker({ onClose }: ColumnPickerProps) {
       <div className="cb-pop" onClick={(e) => e.stopPropagation()}>
         <div className="cb-pophd">
           <div className="t">Customize columns</div>
-          <div className="s">ドラッグで並べ替え・タップで表示切替</div>
+          <div className="s">グリップをドラッグで並べ替え・チェックで表示切替</div>
         </div>
 
-        <div className="cb-poplist">
+        <div className="cb-poplist" ref={listRef}>
           {fields.map((id, i) => (
             <div
               key={id}
+              data-field-index={i}
               className={"cb-pi" + (overIdx === i ? " dragover" : "")}
-              draggable
-              onDragStart={() => onDragStart(i)}
-              onDragOver={(e) => onDragOver(e, i)}
-              onDragEnd={onDragEnd}
             >
-              <span className="grip">
+              <span
+                className="grip"
+                title="ドラッグで並べ替え"
+                style={{ cursor: "grab", touchAction: "none" }}
+                onPointerDown={(e) => onItemPointerDown(e, i)}
+                onPointerMove={onItemPointerMove}
+                onPointerUp={onItemPointerUp}
+              >
                 <Icon name="dragHandle" size={15} />
               </span>
               <span className="lbl">{FIELD_DEFS[id].label}</span>

@@ -60,6 +60,9 @@ export function TrackTable({ onLoadMore, onTracksChanged, onEditTrack, onConvert
     selectedPlaylistId,
     addFilterTag,
     fields,
+    fieldWidths,
+    setFieldWidth,
+    reorderFields,
     rowH,
     coverSize,
     sortField,
@@ -77,6 +80,102 @@ export function TrackTable({ onLoadMore, onTracksChanged, onEditTrack, onConvert
   // 範囲選択の起点（Shift の基準）と、矢印移動のカーソル位置。
   const anchorIdRef = useRef<number | null>(null);
   const focusIdRef = useRef<number | null>(null);
+
+  // === 列ヘッダの pointer 操作（リサイズ / 並べ替え） ===
+  // ヘッダ各列の DOM 参照。ドラッグ中の当たり判定（挿入位置算出）に使う。
+  const headRef = useRef<HTMLDivElement>(null);
+  // リサイズ中の状態（ハンドル pointerdown 時にセット）。
+  const resizeRef = useRef<{ key: FieldKey; startX: number; startW: number } | null>(null);
+  // 列並べ替えのドラッグ状態（ヘッダ本体 pointerdown 時にセット）。
+  const colDragRef = useRef<{ from: number; startX: number; pointerId: number; moved: boolean } | null>(null);
+  // 並べ替え中のドロップ先インジケータ（fields 配列の挿入位置 0..fields.length）。null で非表示。
+  const [dropIndicator, setDropIndicator] = useState<number | null>(null);
+  // ドラッグ操作（リサイズ / 並べ替え）の直後に発火するヘッダ click をソートとして
+  // 誤発火させないためのフラグ。pointerup 直後の click を 1 回だけ握りつぶす。
+  const suppressNextSortClick = useRef(false);
+
+  const clampWidth = (w: number) => Math.max(40, Math.min(600, w));
+
+  // --- 列リサイズ（ハンドル）---
+  const onResizePointerDown = (e: React.PointerEvent, id: FieldKey) => {
+    // ヘッダ本体のドラッグ（並べ替え）/ ソートへ伝播させない。
+    e.stopPropagation();
+    e.preventDefault();
+    const startW = fieldWidths[id] ?? FIELD_DEFS[id].width;
+    resizeRef.current = { key: id, startX: e.clientX, startW };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
+  };
+  const onResizePointerMove = (e: React.PointerEvent) => {
+    const r = resizeRef.current;
+    if (!r) return;
+    e.preventDefault();
+    setFieldWidth(r.key, clampWidth(r.startW + (e.clientX - r.startX)));
+  };
+  const onResizePointerUp = (e: React.PointerEvent) => {
+    if (!resizeRef.current) return;
+    e.stopPropagation();
+    resizeRef.current = null;
+    document.body.style.userSelect = "";
+    document.body.style.cursor = "";
+    // 直後のヘッダ click（ソート）を抑止する。
+    suppressNextSortClick.current = true;
+  };
+
+  // --- 列並べ替え（ヘッダ本体ドラッグ）---
+  // pointerdown 時点の位置と列インデックスを記録し、一定距離動いたらドラッグ開始。
+  // 動かなければ通常クリック（ソート）として扱う。
+  const COL_DRAG_THRESHOLD = 5;
+  const onHeadPointerDown = (e: React.PointerEvent, index: number) => {
+    // リサイズハンドルからの down は onResizePointerDown が stopPropagation するのでここには来ない。
+    if (e.button !== 0) return;
+    colDragRef.current = { from: index, startX: e.clientX, pointerId: e.pointerId, moved: false };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+  // pointer X からドロップ先の挿入インデックス（0..fields.length）を算出する。
+  const computeDropIndex = (clientX: number): number => {
+    const head = headRef.current;
+    if (!head) return 0;
+    const cells = Array.from(
+      head.querySelectorAll<HTMLElement>("[data-col-index]"),
+    );
+    for (const cell of cells) {
+      const r = cell.getBoundingClientRect();
+      const mid = r.left + r.width / 2;
+      if (clientX < mid) {
+        return Number(cell.dataset.colIndex);
+      }
+    }
+    return cells.length;
+  };
+  const onHeadPointerMove = (e: React.PointerEvent) => {
+    const d = colDragRef.current;
+    if (!d) return;
+    if (!d.moved) {
+      if (Math.abs(e.clientX - d.startX) < COL_DRAG_THRESHOLD) return;
+      d.moved = true;
+      document.body.style.userSelect = "none";
+    }
+    setDropIndicator(computeDropIndex(e.clientX));
+  };
+  const onHeadPointerUp = (e: React.PointerEvent) => {
+    const d = colDragRef.current;
+    colDragRef.current = null;
+    if (!d) return;
+    document.body.style.userSelect = "";
+    if (d.moved) {
+      // 挿入位置 → reorderFields の to に変換。
+      // 配列から from を抜くと、from より後ろの挿入位置は 1 つ前へずれる。
+      let to = computeDropIndex(e.clientX);
+      if (to > d.from) to -= 1;
+      to = Math.max(0, Math.min(fields.length - 1, to));
+      if (to !== d.from) reorderFields(d.from, to);
+      // ドラッグ直後の click（ソート）を抑止。
+      suppressNextSortClick.current = true;
+    }
+    setDropIndicator(null);
+  };
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [showAddTagDialog, setShowAddTagDialog] = useState(false);
   const [newTag, setNewTag] = useState("");
@@ -465,8 +564,11 @@ export function TrackTable({ onLoadMore, onTracksChanged, onEditTrack, onConvert
       ? `${selectedTrackIds.size} tracks selected`
       : ctxTrack?.name || "(unknown)";
 
-  const renderField = (id: FieldKey, t: Track): React.ReactNode => {
+  const renderField = (id: FieldKey, t: Track, rowIndex: number): React.ReactNode => {
     switch (id) {
+      case "rowIndex":
+        // 現在の表示順での連番 (1 始まり)。アルバムの trackNumber とは別物。
+        return <span className="cb-fmono cb-dim">{rowIndex + 1}</span>;
       case "bpm":
         return t.bpm != null ? (
           <span className="cb-fmono" style={{ color: bpmColor(t.bpm), fontWeight: 650 }}>
@@ -570,7 +672,7 @@ export function TrackTable({ onLoadMore, onTracksChanged, onEditTrack, onConvert
   return (
     <div className="cb-list" ref={parentRef} onScroll={handleScroll} onClick={closeMenu}>
       {/* Column header */}
-      <div className="cb-head">
+      <div className="cb-head" ref={headRef}>
         <span
           className={"cb-h-id sortable" + (sortField === "name" ? " sorted" : "")}
           onClick={(e) => {
@@ -587,16 +689,33 @@ export function TrackTable({ onLoadMore, onTracksChanged, onEditTrack, onConvert
             />
           )}
         </span>
-        {fields.map((id) => {
+        {fields.map((id, index) => {
           const def = FIELD_DEFS[id];
           const isSorted = def.sortField !== null && def.sortField === sortField;
+          const width = fieldWidths[id] ?? def.width;
+          const isDragging = colDragRef.current?.moved && colDragRef.current.from === index;
           return (
             <span
               key={id}
-              className={"cb-h-f" + (isSorted ? " sorted" : "")}
-              style={{ width: def.width }}
+              data-col-index={index}
+              className={
+                "cb-h-f cb-h-drag" +
+                (isSorted ? " sorted" : "") +
+                (isDragging ? " dragging" : "") +
+                (dropIndicator === index ? " dropbefore" : "")
+              }
+              style={{ width }}
+              title="ドラッグで並べ替え / 右端でリサイズ"
+              onPointerDown={(e) => onHeadPointerDown(e, index)}
+              onPointerMove={onHeadPointerMove}
+              onPointerUp={onHeadPointerUp}
               onClick={(e) => {
                 e.stopPropagation();
+                // リサイズ / 並べ替え直後の click はソートとして扱わない。
+                if (suppressNextSortClick.current) {
+                  suppressNextSortClick.current = false;
+                  return;
+                }
                 if (def.sortField) toggleSort(def.sortField);
               }}
             >
@@ -608,9 +727,19 @@ export function TrackTable({ onLoadMore, onTracksChanged, onEditTrack, onConvert
                   style={{ transform: sortOrder === "asc" ? "rotate(180deg)" : undefined }}
                 />
               )}
+              {/* 右端のリサイズハンドル（ヘッダドラッグとは当たり判定を分ける）。 */}
+              <span
+                className="cb-h-resize"
+                onPointerDown={(e) => onResizePointerDown(e, id)}
+                onPointerMove={onResizePointerMove}
+                onPointerUp={onResizePointerUp}
+                onClick={(e) => e.stopPropagation()}
+              />
             </span>
           );
         })}
+        {/* 末尾へのドロップ位置インジケータ。 */}
+        {dropIndicator === fields.length && <span className="cb-h-droplast" />}
         <span className="cb-h-add" />
       </div>
 
@@ -675,8 +804,12 @@ export function TrackTable({ onLoadMore, onTracksChanged, onEditTrack, onConvert
                 </div>
               </div>
               {fields.map((id) => (
-                <span key={id} className="cb-f" style={{ width: FIELD_DEFS[id].width }}>
-                  {renderField(id, t)}
+                <span
+                  key={id}
+                  className="cb-f"
+                  style={{ width: fieldWidths[id] ?? FIELD_DEFS[id].width }}
+                >
+                  {renderField(id, t, virtualRow.index)}
                 </span>
               ))}
               <span className="cb-add-cell">

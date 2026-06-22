@@ -68,6 +68,8 @@ export function Toolbar({ onLibraryChanged, onOpenRipDialog, onOpenRulesPanel, o
     autoExportEnabled,
     autoExportPath,
     setAutoExport,
+    rightRailVisible,
+    toggleRightRail,
   } = useStore();
 
   const [importing, setImporting] = useState(false);
@@ -404,6 +406,17 @@ export function Toolbar({ onLibraryChanged, onOpenRipDialog, onOpenRulesPanel, o
             }
           >
             <Icon name="clock" size={16} />
+          </button>
+          <button
+            className={"cb-btn cb-btn-iconly" + (rightRailVisible ? " on" : "")}
+            onClick={toggleRightRail}
+            title={
+              rightRailVisible
+                ? "右ペイン (Now Playing / Crate) を隠す"
+                : "右ペイン (Now Playing / Crate) を表示"
+            }
+          >
+            <Icon name="eye" size={16} />
           </button>
           <button
             className="cb-btn cb-btn-iconly"

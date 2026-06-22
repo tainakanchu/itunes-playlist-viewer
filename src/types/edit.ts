@@ -52,6 +52,7 @@ export type SortOrder = "asc" | "desc";
 // Track の identity（カバー + 曲名 + アーティスト）は常時表示の先頭セルで、
 // ここに含めない。ここで定義するのは右側の固定幅フィールド群。
 export type FieldKey =
+  | "rowIndex"
   | "bpm"
   | "key"
   | "energy"
@@ -76,6 +77,9 @@ export interface FieldDef {
 }
 
 export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
+  // 現在の表示順での連番 (1,2,3…)。アルバムのトラック番号(trackNumber)とは別物。
+  // 表示インデックスを描画するだけなのでソート対象外 (sortField: null)。
+  rowIndex: { key: "rowIndex", label: "No.", width: 48, sortField: null },
   bpm: { key: "bpm", label: "BPM", width: 64, sortField: "bpm" },
   // key / energy は track_analysis 由来。tracks テーブルに無いのでソート対象外 (sortField: null)。
   key: { key: "key", label: "Key", width: 56, sortField: null },
@@ -87,13 +91,14 @@ export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
   plays: { key: "plays", label: "Plays", width: 56, sortField: "playCount" },
   time: { key: "time", label: "Time", width: 60, sortField: "totalTimeMs" },
   albumArtist: { key: "albumArtist", label: "Album Artist", width: 150, sortField: "albumArtist" },
-  trackNumber: { key: "trackNumber", label: "#", width: 44, sortField: "trackNumber" },
+  trackNumber: { key: "trackNumber", label: "Track #", width: 64, sortField: "trackNumber" },
   dateAdded: { key: "dateAdded", label: "Date Added", width: 104, sortField: "dateAdded" },
   lastPlayed: { key: "lastPlayed", label: "Last Played", width: 104, sortField: "lastPlayed" },
 };
 
 /// ColumnPicker の "Available" 列挙順。
 export const ALL_FIELDS: FieldKey[] = [
+  "rowIndex",
   "bpm",
   "key",
   "energy",

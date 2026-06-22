@@ -18,6 +18,10 @@ import { DEFAULT_FIELDS } from "../types";
 
 interface PersistedSettings {
   fields: FieldKey[];
+  // 列ごとのユーザー指定幅 (px)。未指定の列は FIELD_DEFS の既定幅を使う。
+  fieldWidths: Partial<Record<FieldKey, number>>;
+  // 右ペイン(RightRail)を表示するか。false でテーブルを全幅に広げる。
+  rightRailVisible: boolean;
   rowH: number;
   coverSize: CoverSize;
   displayMode: DisplayMode;
@@ -100,6 +104,9 @@ interface AppState extends PersistedSettings {
   setFields: (fields: FieldKey[]) => void;
   toggleField: (key: FieldKey) => void;
   reorderFields: (from: number, to: number) => void;
+  setFieldWidth: (key: FieldKey, width: number) => void;
+  setRightRailVisible: (visible: boolean) => void;
+  toggleRightRail: () => void;
   setRowH: (h: number) => void;
   setCoverSize: (s: CoverSize) => void;
   resetColumns: () => void;
@@ -148,6 +155,8 @@ export const useStore = create<AppState>()(
 
       // Persisted
       fields: DEFAULT_FIELDS,
+      fieldWidths: {},
+      rightRailVisible: true,
       rowH: 40,
       coverSize: 20,
       displayMode: "list",
@@ -247,10 +256,15 @@ export const useStore = create<AppState>()(
           next.splice(to, 0, m);
           return { fields: next };
         }),
+      setFieldWidth: (key, width) =>
+        set((state) => ({ fieldWidths: { ...state.fieldWidths, [key]: width } })),
+      setRightRailVisible: (rightRailVisible) => set({ rightRailVisible }),
+      toggleRightRail: () =>
+        set((state) => ({ rightRailVisible: !state.rightRailVisible })),
       setRowH: (rowH) => set({ rowH }),
       setCoverSize: (coverSize) => set({ coverSize }),
       resetColumns: () =>
-        set({ fields: DEFAULT_FIELDS, rowH: 40, coverSize: 20 }),
+        set({ fields: DEFAULT_FIELDS, fieldWidths: {}, rowH: 40, coverSize: 20 }),
       setSortField: (field) => set({ sortField: field }),
       setSortOrder: (order) => set({ sortOrder: order }),
       toggleSort: (field) =>
@@ -289,10 +303,12 @@ export const useStore = create<AppState>()(
     {
       name: "itunes-viewer-settings",
       storage: createJSONStorage(() => localStorage),
-      version: 6,
+      version: 7,
       partialize: (state) =>
         ({
           fields: state.fields,
+          fieldWidths: state.fieldWidths,
+          rightRailVisible: state.rightRailVisible,
           rowH: state.rowH,
           coverSize: state.coverSize,
           displayMode: state.displayMode,
@@ -330,6 +346,15 @@ export const useStore = create<AppState>()(
           const p = persisted as Record<string, unknown>;
           if (typeof p.autoExportEnabled !== "boolean") p.autoExportEnabled = false;
           if (typeof p.autoExportPath !== "string") p.autoExportPath = null;
+        }
+        // v7: 列幅(fieldWidths) と 右ペイン表示(rightRailVisible) を追加。
+        // 旧データには無いので空オブジェクト / true で補完する。
+        if (version < 7 && persisted && typeof persisted === "object") {
+          const p = persisted as Record<string, unknown>;
+          if (typeof p.fieldWidths !== "object" || p.fieldWidths === null) {
+            p.fieldWidths = {};
+          }
+          if (typeof p.rightRailVisible !== "boolean") p.rightRailVisible = true;
         }
         return persisted as PersistedSettings;
       },

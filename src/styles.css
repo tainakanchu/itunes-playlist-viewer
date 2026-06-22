@@ -538,6 +538,8 @@ input {
   display: flex;
   align-items: center;
   gap: 3px;
+  position: relative;
+  overflow: hidden;
 }
 .cb-h-id.sortable,
 .cb-h-f.sortable {
@@ -554,6 +556,65 @@ input {
 .cb-h-add {
   width: 40px;
   flex-shrink: 0;
+}
+
+/* 列ヘッダのドラッグ並べ替え。pointer 操作を webview で安定させるため touch-action を切る。 */
+.cb-h-drag {
+  touch-action: none;
+  user-select: none;
+}
+.cb-h-drag:hover {
+  background: var(--hover);
+}
+.cb-h-drag.dragging {
+  opacity: 0.5;
+}
+/* ドロップ位置インジケータ（その列の手前に縦線）。 */
+.cb-h-drag.dropbefore::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  background: var(--ac);
+  border-radius: 1px;
+  z-index: 4;
+}
+/* 末尾へのドロップ位置インジケータ。 */
+.cb-h-droplast {
+  width: 2px;
+  align-self: stretch;
+  margin: 4px 0;
+  background: var(--ac);
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+
+/* 列リサイズ用ハンドル（各ヘッダの右端）。ヘッダ本体ドラッグとは当たり判定を分ける。 */
+.cb-h-resize {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 5;
+}
+.cb-h-resize::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  right: 2px;
+  width: 2px;
+  background: transparent;
+  border-radius: 1px;
+}
+.cb-h-resize:hover::after,
+.cb-h-resize:active::after {
+  background: var(--ac);
 }
 
 .cb-list {
