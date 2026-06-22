@@ -448,15 +448,28 @@ pub async fn remove_genre_tags(
 
 // ===== ストリーミング / アートワーク =====
 
+/// `GET /api/tracks/{trackId}/artwork` のクエリ (すべて任意)。
+/// `size`/`format` のどちらかが指定されると、サーバー側でリサイズ + 再エンコードする。
+/// どちらも無ければ後方互換で原本をそのまま返す。
+#[derive(Debug, Default, Deserialize)]
+pub struct ArtworkQuery {
+    /// 最大辺 (px)。アスペクト比は維持。format 指定で size 省略時は 512。
+    pub size: Option<u32>,
+    /// 出力フォーマット。"webp" (既定) または "jpeg"。
+    pub format: Option<String>,
+}
+
 /// `GET /api/tracks/{trackId}/artwork` — 曲の埋め込みアートワークを配信する。
-/// アートワークが存在する場合は `Content-Type: <mime>` + `Cache-Control: max-age=86400` で 200。
-/// 存在しない / 取得失敗時は 404。
+/// - クエリ無し: 原本 (bytes, mime) をそのまま返す (後方互換)。
+/// - `size`/`format` 指定: デコード → アスペクト比維持で最大辺 ≤ size に縮小 →
+///   指定フォーマット (webp ロスレス / jpeg q82) で再エンコードして返す。
+///   デコード/エンコード失敗時は原本にフォールバックする (落とさない)。
+/// いずれも `Cache-Control: max-age=86400`。アートワーク無し / 取得失敗は 404。
 pub async fn stream_artwork(
     State(state): State<ApiState>,
     Path(track_id): Path<i64>,
+    Query(q): Query<ArtworkQuery>,
 ) -> Result<Response, ApiError> {
-    use axum::response::IntoResponse;
-
     let db = state.db()?;
     let track = db
         .get_track_by_track_id(track_id)
@@ -468,18 +481,68 @@ pub async fn stream_artwork(
         return Err(ApiError::not_found("no file path for this track"));
     }
 
-    match crate::artwork::extract_picture(path_str) {
-        Some((bytes, mime)) => {
-            Ok((
-                [
-                    ("content-type", mime.as_str()),
-                    ("cache-control", "max-age=86400"),
-                ],
-                bytes,
-            )
-                .into_response())
-        }
-        None => Err(ApiError::not_found("artwork not found")),
+    let (bytes, mime) = match crate::artwork::extract_picture(path_str) {
+        Some(v) => v,
+        None => return Err(ApiError::not_found("artwork not found")),
+    };
+
+    // クエリ未指定なら従来どおり原本を返す。
+    if q.size.is_none() && q.format.is_none() {
+        return Ok(artwork_response(bytes, &mime));
+    }
+
+    // リサイズ + 再エンコード。失敗時は原本へフォールバックする。
+    match resize_artwork(&bytes, q.size, q.format.as_deref()) {
+        Some((out, out_mime)) => Ok(artwork_response(out, out_mime)),
+        None => Ok(artwork_response(bytes, &mime)),
+    }
+}
+
+/// アートワークのレスポンスを組み立てる (content-type + 1 日キャッシュ)。
+fn artwork_response(bytes: Vec<u8>, mime: &str) -> Response {
+    use axum::response::IntoResponse;
+    (
+        [
+            ("content-type", mime.to_string()),
+            ("cache-control", "max-age=86400".to_string()),
+        ],
+        bytes,
+    )
+        .into_response()
+}
+
+/// 原本バイトをデコードし、アスペクト比維持で最大辺 ≤ size に縮小して再エンコードする。
+/// format 既定は webp (ロスレス, pure Rust)、"jpeg" 指定で JPEG (品質 82)。
+/// size 既定は 512。デコード/エンコードに失敗したら `None` (呼び出し側で原本へフォールバック)。
+fn resize_artwork(bytes: &[u8], size: Option<u32>, format: Option<&str>) -> Option<(Vec<u8>, &'static str)> {
+    use image::codecs::jpeg::JpegEncoder;
+    use image::ImageFormat;
+
+    let img = image::load_from_memory(bytes).ok()?;
+    // 要求サイズは安全上限 (2048) でクランプ。loopback は無認証で叩けるため、
+    // ?size=50000 のような巨大値で thumbnail が width*height*4 バイトを確保して
+    // OOM/abort するのを防ぐ。
+    let edge = size.unwrap_or(512).clamp(1, 2048);
+    // 元画像より大きい指定では拡大しない (最大辺が edge を超える時だけ縮小。アスペクト比は維持)。
+    let thumb = if img.width().max(img.height()) > edge {
+        img.thumbnail(edge, edge)
+    } else {
+        img
+    };
+
+    let want_jpeg = matches!(format, Some("jpeg") | Some("jpg"));
+    let mut out = std::io::Cursor::new(Vec::new());
+    if want_jpeg {
+        // JPEG は品質 82 で固定 (アルファは write_with_encoder が RGB へ畳む)。
+        let encoder = JpegEncoder::new_with_quality(&mut out, 82);
+        thumb.write_with_encoder(encoder).ok()?;
+        Some((out.into_inner(), "image/jpeg"))
+    } else {
+        // 既定: webp (image-webp による VP8L ロスレス, C ライブラリ不要)。
+        // write_to が ImageFormat::WebP に対し WebPEncoder::new_lossless を選び、
+        // 必要な色変換 (Rgb8/Rgba8 へ) も自動で行う。
+        thumb.write_to(&mut out, ImageFormat::WebP).ok()?;
+        Some((out.into_inner(), "image/webp"))
     }
 }
 

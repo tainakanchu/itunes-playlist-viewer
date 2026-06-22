@@ -16,6 +16,7 @@ pub(crate) mod handlers;
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use axum::routing::{delete, get, post};
 use axum::Router;
@@ -317,12 +318,31 @@ pub struct ServerControl {
     #[allow(dead_code)]
     pub addr: SocketAddr,
     shutdown: tokio::sync::oneshot::Sender<()>,
+    /// serve タスクのハンドル。`stop` でタスク終了を待ち合わせる (ポート解放の同期)。
+    handle: tauri::async_runtime::JoinHandle<()>,
 }
 
 impl ServerControl {
-    /// グレースフル停止を要求する (送信失敗 = 既にタスク終了済みは無視)。
+    /// グレースフル停止を要求し、serve タスクの終了を待ってから戻る。
+    /// これにより `stop()` から戻った時点でリスナー (ポート) が解放済みになり、
+    /// 直後の `start()` が "address in use" で race しなくなる。
+    /// 最大 3 秒待ち、終わらなければ abort して即座に解放する。
     pub fn stop(self) {
+        // グレースフル停止を要求する (送信失敗 = 既にタスク終了済みは無視)。
         let _ = self.shutdown.send(());
+        // serve タスクの終了を待つ。タイムアウトしたら abort して即解放する。
+        // JoinHandle は Unpin かつ Future なので `&mut handle` を await でき、
+        // タイムアウト時 (Err) にも handle 本体が残るので abort を呼べる。
+        let mut handle = self.handle;
+        tauri::async_runtime::block_on(async move {
+            if tokio::time::timeout(Duration::from_secs(3), &mut handle)
+                .await
+                .is_err()
+            {
+                // 3 秒で終わらなければ abort してポートを即解放する。
+                handle.abort();
+            }
+        });
     }
 }
 
@@ -341,10 +361,11 @@ pub fn start(
     let ip = if lan { [0, 0, 0, 0] } else { [127, 0, 0, 1] };
     let addr = SocketAddr::from((ip, port));
     // bind は同期的に確定させたいので block_on で待つ (tauri は内部で tokio を使う)。
-    let listener = tauri::async_runtime::block_on(async move {
-        tokio::net::TcpListener::bind(addr).await
-    })
-    .map_err(|e| format!("bind {addr} failed: {e}"))?;
+    // SO_REUSEADDR (unix では SO_REUSEPORT も) を立てて bind することで、直前の
+    // ソケットが TIME_WAIT/teardown 中でも再 bind できるようにする。それでも
+    // AddrInUse になる場合は短いリトライで teardown 完了を待つ。
+    let listener = tauri::async_runtime::block_on(async move { bind_reuse(addr).await })
+        .map_err(|e| format!("bind {addr} failed: {e}"))?;
     let local = listener.local_addr().map_err(|e| e.to_string())?;
 
     let (tx, rx) = tokio::sync::oneshot::channel::<()>();
@@ -355,7 +376,7 @@ pub fn start(
         pairings,
     };
     let svc = router(state).into_make_service_with_connect_info::<SocketAddr>();
-    tauri::async_runtime::spawn(async move {
+    let handle = tauri::async_runtime::spawn(async move {
         let _ = axum::serve(listener, svc)
             .with_graceful_shutdown(async move {
                 let _ = rx.await;
@@ -366,7 +387,50 @@ pub fn start(
     Ok(ServerControl {
         addr: local,
         shutdown: tx,
+        handle,
     })
+}
+
+/// SO_REUSEADDR (unix では SO_REUSEPORT も) を設定して bind し、tokio リスナーへ変換する。
+/// `AddrInUse` のときだけ最大 10 回 (各 100ms) リトライする (直前ソケットの teardown 待ち)。
+/// それ以外のエラーは即座に返す。
+async fn bind_reuse(addr: SocketAddr) -> std::io::Result<tokio::net::TcpListener> {
+    use socket2::{Domain, Protocol, Socket, Type};
+
+    let domain = if addr.is_ipv6() {
+        Domain::IPV6
+    } else {
+        Domain::IPV4
+    };
+
+    let mut last_err: Option<std::io::Error> = None;
+    for attempt in 0..10 {
+        let socket = Socket::new(domain, Type::STREAM, Some(Protocol::TCP))?;
+        socket.set_reuse_address(true)?;
+        #[cfg(unix)]
+        socket.set_reuse_port(true)?;
+        // 非ブロッキングにしてから tokio へ渡す (from_std の前提)。
+        socket.set_nonblocking(true)?;
+
+        match socket.bind(&addr.into()) {
+            Ok(()) => {
+                socket.listen(1024)?;
+                let std_listener: std::net::TcpListener = socket.into();
+                return tokio::net::TcpListener::from_std(std_listener);
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
+                // 直前のソケットがまだ解放されきっていない。少し待って再試行する。
+                last_err = Some(e);
+                if attempt + 1 < 10 {
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                }
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    Err(last_err.unwrap_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::AddrInUse, "address in use")
+    }))
 }
 
 #[cfg(test)]

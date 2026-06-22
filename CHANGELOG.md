@@ -10,6 +10,32 @@ Each release is documented in both Japanese and English.
 
 ## [Unreleased]
 
+## [v0.8.3] - 2026-06-22
+
+### 日本語
+
+#### 改善
+- **内蔵 API サーバーの再起動を堅牢化**：サーバーの停止が確実に完了してから再起動するようにし（停止処理を同期化＋最大3秒で強制終了）、bind 時に `SO_REUSEADDR`/`SO_REUSEPORT` を設定。「前のサーバーが落ち切らずに起動できない（address in use）」を解消。
+- **アートワークのサーバー側リサイズ＋webp/jpeg 配信**：`GET /api/tracks/{id}/artwork` が `?size=&format=webp|jpeg` に対応（純 Rust の webp エンコード、C ライブラリ不要）。モバイルのオフライン用に軽量なサムネを返せるように（巨大サイズ指定は安全上限でクランプ）。指定が無ければ従来どおり原本を返す（後方互換）。
+
+#### モバイル（OTA 配信）
+- **オフラインでもアートワークが出る**：曲のダウンロード時にアルバムアートを webp でローカル保存（アルバム単位で重複排除）し、未接続でもジャケットを表示。
+- **オフラインのコレクションが分かりやすく**：アルバム行にアートワークとアルバムアーティスト（複数混在は "Various Artists"）を表示。アーティスト単位のセクションを新設。
+- **アーティストページをアルバム表示に**：アーティストを開くとアルバムが並び、アルバムアーティスト順でソート。オフラインでもダウンロード済みから表示。
+- **再生中画面からの導線**：再生中のアーティスト（とアルバム）をタップでそのページへ遷移。アーティストの束ね方は設定（アルバムアーティスト/アーティスト）に追従。
+
+### English
+
+#### Improved
+- **More robust embedded API server restarts**: the server now fully stops before restarting (synchronous stop with a 3s force-abort fallback) and binds with `SO_REUSEADDR`/`SO_REUSEPORT`, fixing "address in use" when the previous server hadn't fully shut down.
+- **Server-side artwork resize + webp/jpeg**: `GET /api/tracks/{id}/artwork` now accepts `?size=&format=webp|jpeg` (pure-Rust webp encoding, no C library), so mobile can fetch lightweight offline thumbnails (oversized requests are clamped). Without params it returns the original (backward compatible).
+
+#### Mobile (OTA)
+- **Artwork now shows offline**: album art is saved locally as webp on download (deduplicated per album), so covers appear even when disconnected.
+- **Clearer offline collection**: album rows show artwork and album artist ("Various Artists" when mixed); added an Artists section.
+- **Artist page shows albums**: opening an artist lists their albums, sorted by album artist; works offline from downloaded tracks.
+- **Now-playing navigation**: tap the artist (and album) on the now-playing screen to jump to that page; artist grouping follows the setting (album artist / artist).
+
 ## [v0.8.2] - 2026-06-22
 
 ### 日本語

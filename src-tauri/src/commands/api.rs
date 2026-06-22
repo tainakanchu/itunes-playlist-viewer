@@ -146,11 +146,14 @@ pub fn set_api_server_config(
     }
 
     // 2. 既存ハンドルがあれば停止する。
-    {
+    //    stop() は serve タスク終了 (最大 3 秒) を待ってブロックしうるので、
+    //    guard を握ったままにせず ctrl を take して guard を drop してから停止する。
+    let ctrl = {
         let mut guard = server.lock().map_err(|e| e.to_string())?;
-        if let Some(ctrl) = guard.take() {
-            ctrl.stop();
-        }
+        guard.take()
+    };
+    if let Some(c) = ctrl {
+        c.stop();
     }
 
     // 3. enabled なら起動する。失敗時は running=false でエラーを返す。
@@ -221,11 +224,14 @@ pub fn set_api_lan_enabled(
     }
 
     // 2. 既存ハンドルがあれば停止する。
-    {
+    //    stop() は最大 3 秒ブロックしうるので、guard を握ったままにせず
+    //    ctrl を take → guard を drop してから停止する。
+    let ctrl = {
         let mut guard = server.lock().map_err(|e| e.to_string())?;
-        if let Some(ctrl) = guard.take() {
-            ctrl.stop();
-        }
+        guard.take()
+    };
+    if let Some(c) = ctrl {
+        c.stop();
     }
 
     // 3. api_server_enabled が true なら再起動する。
@@ -259,11 +265,14 @@ pub fn regenerate_api_token(
     }
 
     // 2. 既存ハンドルがあれば停止する。
-    {
+    //    stop() は最大 3 秒ブロックしうるので、guard を握ったままにせず
+    //    ctrl を take → guard を drop してから停止する。
+    let ctrl = {
         let mut guard = server.lock().map_err(|e| e.to_string())?;
-        if let Some(ctrl) = guard.take() {
-            ctrl.stop();
-        }
+        guard.take()
+    };
+    if let Some(c) = ctrl {
+        c.stop();
     }
 
     // 3. api_server_enabled が true なら再起動する。
