@@ -1,11 +1,11 @@
 ---
 title: Crateforge Documentation
-description: How-to guide for Crateforge, a blazing-fast iTunes-style music manager / DJ curation desktop app.
+description: Usage guide for Crateforge, a blazing-fast iTunes-style music management and DJ curation desktop app.
 template: splash
 hero:
-  tagline: From blazing-fast iTunes-style music management to DJ analysis, similarity curation, and AI curation — all in one app.
+  tagline: From blazing-fast iTunes-style music management to DJ analysis, similarity-based curation, and AI curation. All in one app.
   actions:
-    - text: Start with Install
+    - text: Start with installation
       link: ./guide/install/
       icon: right-arrow
       variant: primary
@@ -17,56 +17,54 @@ hero:
 
 import { Card, CardGrid } from "@astrojs/starlight/components";
 
-> 🚧 翻訳準備中 / Translation in progress
+## What is Crateforge
 
-## Crateforge とは
+**Crateforge** is a blazing-fast iTunes-style music management desktop app built with Tauri 2 + React 19 + Vite 6 + Rust.
+On top of importing/exporting `iTunes Library.xml`, importing local files, ripping CDs, editing playlists, and local playback,
+it also covers DJ-oriented analysis (BPM / Key (Camelot) / Energy), similarity-based curation, format conversion, and Smart Playlists — **all within this single app**.
 
-**Crateforge** は Tauri 2 + React 19 + Vite 6 + Rust 製の、爆速 iTunes 風 音楽管理デスクトップアプリです。
-`iTunes Library.xml` の取り込み / 書き出し、ローカルファイル取り込み、CD リッピング、プレイリスト編集、ローカル再生に加え、
-DJ 向けの解析（BPM / Key (Camelot) / Energy）・類似度選曲・フォーマット変換・スマートプレイリストまで、**このアプリ単体で完結**します。
+> The previous name was "iTunes Playlist Viewer." We rebranded to crate (to dig, to gather) + forge (to refine, to assemble) — a name that reflects what it does: analyze, curate, and forge your set.
 
-> 旧名は「iTunes Playlist Viewer」です。crate（掘る・集める）+ forge（鍛える・組み上げる）で、解析して選曲しセットを鍛えるという中身を表す名前にリブランドしました。
-
-## 主要機能
+## Key features
 
 <CardGrid stagger>
-  <Card title="爆速ライブラリ" icon="rocket">
-    SQLite (WAL) + 索引で 10,000+ トラックでも快適。リストは仮想化で軽快にスクロールできます。
+  <Card title="Blazing-fast library" icon="rocket">
+    SQLite (WAL) + indexes keep things smooth even with 10,000+ tracks. Lists are virtualized for snappy scrolling.
   </Card>
-  <Card title="iTunes XML 互換" icon="document">
-    入出力とも Apple plist 形式。rekordbox / Serato / Traktor などが読み取れる XML を書き出せます。
+  <Card title="iTunes XML compatible" icon="document">
+    Both import and export use the Apple plist format. You can export XML that rekordbox / Serato / Traktor and others can read.
   </Card>
-  <Card title="DJ 解析" icon="setting">
-    純 Rust の DSP で BPM / Key (Camelot) / Energy / ラウドネスと類似度を解析。Harmonic な「次の一手」を提案します。
+  <Card title="DJ analysis" icon="setting">
+    A pure-Rust DSP analyzes BPM / Key (Camelot) / Energy / loudness and similarity. It suggests harmonic "next moves."
   </Card>
-  <Card title="ローカル再生" icon="seti:audio">
-    rodio (symphonia) で各種フォーマットを直接デコード。Up Next キュー・シャッフル・リピートに対応。
+  <Card title="Local playback" icon="seti:audio">
+    rodio (symphonia) decodes a wide range of formats directly. Supports the Up Next queue, shuffle, and repeat.
   </Card>
-  <Card title="スマートプレイリスト" icon="list-format">
-    条件で中身が自動的に決まるプレイリスト。開くたびに最新の状態へ。
+  <Card title="Smart Playlists" icon="list-format">
+    Playlists whose contents are determined automatically by rules. Up to date every time you open them.
   </Card>
-  <Card title="モバイル & リモコン" icon="laptop">
-    内蔵 API サーバーでスマホ/TV から再生・リモコン操作。モバイルはオフライン DL / 閲覧 / 再生にも対応。
+  <Card title="Mobile & remote" icon="laptop">
+    Play and control from your phone/TV via the built-in API server. Mobile also supports offline download / browsing / playback.
   </Card>
-  <Card title="フォーマット変換" icon="random">
-    ffmpeg で MP3 / AAC / Opus / FLAC / ALAC / WAV に変換。タグとカバーアートを引き継ぎます。
+  <Card title="Format conversion" icon="random">
+    Convert to MP3 / AAC / Opus / FLAC / ALAC / WAV with ffmpeg. Tags and cover art carry over.
   </Card>
-  <Card title="AI 選曲" icon="puzzle">
-    ローカル HTTP API を内蔵。Claude Code プラグイン dj-curator から選曲の叩き台を生成できます。
+  <Card title="AI curation" icon="puzzle">
+    A local HTTP API is built in. The Claude Code plugin dj-curator can generate a starting point for your set.
   </Card>
 </CardGrid>
 
-## 対応 OS
+## Supported OSes
 
-- **Windows** — `.exe` / ポータブル `.zip` / `.msi` / セットアップ `.exe`。アプリ内の自動更新に対応（exe をその場で差し替え）。
-- **macOS** — **未署名** の `.dmg`（Apple Silicon / Intel）。初回起動は Gatekeeper を回避する必要があります。
-- **Linux** — `.AppImage`（単一ファイル）と `.deb`。
+- **Windows** — `.exe` / portable `.zip` / `.msi` / setup `.exe`. Supports in-app auto-update (swaps the exe in place).
+- **macOS** — **unsigned** `.dmg` (Apple Silicon native). The first launch requires bypassing Gatekeeper.
+- **Linux** — `.AppImage` (single file) and `.deb`.
 
-> アプリ内の自動更新は **Windows 専用** です。macOS / Linux は手動更新になります。
+> In-app auto-update is **Windows-only**. macOS / Linux are updated manually.
 
-## 次のステップ
+## Next steps
 
-- [インストール](./guide/install/) — ダウンロードから初回起動・自動アップデートまで
-- [ライブラリ取り込み](./guide/import/) — iTunes XML / フォルダ取り込み
-- [再生・キュー・Crate](./guide/playback/) — Up Next と DJ 選曲の使い方
-- [DJ 解析](./guide/dj-analysis/) — BPM / Key / Energy / 類似度
+- [Installation](./guide/install/) — from download to first launch and auto-update
+- [Library import](./guide/import/) — iTunes XML / folder import
+- [Playback, queue & Crate](./guide/playback/) — how to use Up Next and DJ curation
+- [DJ analysis](./guide/dj-analysis/) — BPM / Key / Energy / similarity

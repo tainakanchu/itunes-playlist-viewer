@@ -1,91 +1,89 @@
 ---
-title: 内蔵 API サーバー
-description: ローカル HTTP API サーバー（トークン / ペアリング）、AI 連携、iPad 等のリモコン Web UI。
+title: Built-in API server
+description: The local HTTP API server (tokens / pairing), AI integration, and a remote web UI for iPad and others.
 ---
 
-> 🚧 翻訳準備中 / Translation in progress
+Crateforge has a **built-in local HTTP API server**.
+Enabling it lets you integrate with AI agents (such as dj-curator) and play and control from a phone / TV / iPad.
 
-Crateforge は **ローカル HTTP API サーバー** を内蔵しています。
-これを有効にすると、AI エージェント（dj-curator など）との連携や、スマホ / TV / iPad からの再生・リモコン操作ができます。
+> Screenshots to be added
 
-> 画像は後日追加
+## Enabling and listen address
 
-## 有効化と待受先
+Enable the API server under **"AI integration / API"** in settings.
 
-設定の **「AI 連携 / API」** で API サーバーを有効化します。
+- It is **OFF** by default. The default port is **8787**.
+- By default it listens on **`127.0.0.1` (loopback only)**.
+- Enabling **"Expose on LAN"** lets you access it from a phone / TV / PC browser on the same Wi-Fi.
+  The connection URL and a **QR code** are shown in settings.
 
-- 既定は **OFF**。既定ポートは **8787**。
-- 既定では **`127.0.0.1`（ループバックのみ）** で待ち受けます。
-- **「LAN 公開」** を有効にすると、同じ Wi-Fi のスマホ / TV / PC のブラウザからアクセスできます。
-  接続 URL と **QR コード** が設定に表示されます。
+It has been hardened to restart only after the server has reliably stopped (`SO_REUSEADDR` / `SO_REUSEPORT`),
+resolving the "can't start because the previous server hasn't fully shut down (address in use)" problem.
 
-サーバーの停止が確実に完了してから再起動するよう堅牢化されており（`SO_REUSEADDR` / `SO_REUSEPORT`）、
-「前のサーバーが落ち切らずに起動できない（address in use）」を解消しています。
+## Authentication, tokens, and pairing
 
-## 認証・トークン・ペアリング
-
-- アクセスには **トークンが必須** です（設定に表示されるトークン）。トークンは再生成できます。
-- カメラの無い端末（Android TV など）向けに **デバイスペアリング** を用意しています。
-  `POST /api/pair/start` → `GET /api/pair/poll`（いずれも token 不要）で開始し、
-  設定の **「端末を承認」** UI で許可すると、長いトークンを手入力せずに接続できます。
+- Access **requires a token** (the token shown in settings). The token can be regenerated.
+- For devices without a camera (such as Android TV), **device pairing** is provided.
+  Start with `POST /api/pair/start` → `GET /api/pair/poll` (neither needs a token), and
+  approving it in the **"Approve device"** UI in settings lets you connect without typing a long token by hand.
 
 :::caution
-書き込み系の操作は **ローカル（同一 PC）からのみ** を前提としています。LAN 公開時のブラウズは読み取り中心です。
+Write operations are assumed to come **only from the local machine (the same PC)**. Browsing when exposed on LAN is read-centric.
 :::
 
-## AI 連携（読み書き API）
+## AI integration (read/write API)
 
-ライブラリ・解析データ・プレイリストを読み書きできる REST API を公開します。主なエンドポイント:
+It exposes a REST API for reading and writing the library, analysis data, and playlists. The main endpoints:
 
-### 読み取り
+### Read
 
-- `GET /api/health` — サーバーの素性 + 現在の曲数
-- `GET /api/tracks`（`?q` 検索、`?album` / `?artist` 部分一致、offset/limit）
+- `GET /api/health` — server identity + current track count
+- `GET /api/tracks` (`?q` search, `?album` / `?genre` partial match, offset/limit)
 - `GET /api/tracks/{id}` / `POST /api/tracks/by-ids`
-- `GET /api/tracks/{id}/analysis` — 解析結果（未解析なら null）
-- `GET /api/tracks/{id}/similar` — 類似曲
+- `GET /api/tracks/{id}/analysis` — analysis results (null if not analyzed)
+- `GET /api/tracks/{id}/similar` — similar tracks
 - `GET /api/stats` / `GET /api/genres` / `GET /api/albums`
-- `GET /api/playlists` / `GET /api/playlists/{id}`（スマート条件 `smartCriteria` を含む） / `GET /api/playlists/{id}/tracks`
+- `GET /api/playlists` / `GET /api/playlists/{id}` (includes the smart criteria `smartCriteria`) / `GET /api/playlists/{id}/tracks`
 
-### 書き込み（メタデータ）
+### Write (metadata)
 
-- `PATCH /api/tracks/{id}` — name / artist / album / genre / year / bpm / rating / composer / comments などを部分更新。
-  composer / comments は実ファイルのタグにも反映、`disabled` / `playCount` / `skipCount` は DB のみ。
-- `PATCH /api/tracks`（`{trackIds, edit}`） — 複数曲の一括更新。
-- `POST /api/tracks/genre-tags/add` / `/remove` — ジャンルタグを末尾に一括で増減。
+- `PATCH /api/tracks/{id}` — partially update name / artist / album / genre / year / bpm / rating / composer / comments, etc.
+  name / artist / album / genre / year / composer / comments are also reflected in the actual file's tags, while `bpm` / `rating` / `disabled` / `playCount` / `skipCount` are DB-only.
+- `PATCH /api/tracks` (`{trackIds, edit}`) — bulk-update multiple tracks.
+- `POST /api/tracks/genre-tags/add` / `/remove` — add or remove genre tags at the end in bulk.
 
-メタデータの書き込みは DB 更新に加えて **実ファイルの ID3 / Vorbis / MP4 タグへ書き戻し**（フォルダ移動はせずタグのみ）、
-GUI に即時反映します。
+Metadata writes, in addition to updating the DB, are **written back to the actual file's ID3 / Vorbis / MP4 tags** (tags only, without moving folders),
+and are reflected in the GUI immediately.
 
-### プレイリスト
+### Playlists
 
-- `POST /api/playlists` — 新規作成
-- `POST /api/playlists/{id}/tracks` — 曲を追加
-- `DELETE /api/playlists/{id}/tracks/{trackId}` — 曲を 1 件外す
+- `POST /api/playlists` — create a new one
+- `POST /api/playlists/{id}/tracks` — add tracks
+- `DELETE /api/playlists/{id}/tracks/{trackId}` — remove a single track
 
-API 経由の変更は `library-changed` イベントで起動中アプリの UI に即時反映されます。
+Changes made via the API are reflected immediately in the running app's UI through the `library-changed` event.
 
-### AI 選曲（dj-curator）
+### AI curation (dj-curator)
 
-このリポジトリは Claude Code の **plugin marketplace** にもなっています。
+This repository is also a Claude Code **plugin marketplace**.
 
 ```text
 /plugin marketplace add tainakanchu/crateforge
 /plugin install dj-curator@crateforge
 
-# コンセプトから選曲の叩き台を生成
-/dj-curator:build-set 夏の夕暮れの chill house、90分、ゆるめスタート
+# Generate a starting point for a set from a concept
+/dj-curator:build-set summer-dusk chill house, 90 min, mellow start
 ```
 
-AI は **候補プールの選定に集中** し、**曲順は GUI で人間が詰める** 方針です。
-詳細は [dj-curator の README](https://github.com/tainakanchu/crateforge/tree/main/plugins/dj-curator) を参照してください。
+The policy is that the AI **focuses on selecting the candidate pool**, while **a human finalizes the track order in the GUI**.
+For details, see the [dj-curator README](https://github.com/tainakanchu/crateforge/tree/main/plugins/dj-curator).
 
-## iPad 等のリモコン Web UI
+## Remote web UI for iPad and others
 
-LAN 公開を有効にすると、**同一オリジンのリモコン Web UI**（`http://PC-IP:PORT/`）をブラウザで開けます。
-iPad などから「PC で再生（リモコン）」と「この端末で再生」を切り替えられます。
-iOS は **「ホーム画面に追加」で全画面アプリ化（PWA）** できます。
+When you enable LAN exposure, you can open a **same-origin remote web UI** (`http://PC-IP:PORT/`) in a browser.
+From an iPad and the like, you can switch between "Play on PC (remote)" and "Play on this device."
+On iOS, you can make it a full-screen app (**PWA**) with **"Add to Home Screen."**
 
-リモコンには **再生 / 一時停止・前後・シーク・音量スライダー・シャッフル / リピートのトグル** があり、
-状態は `GET /api/remote/state`（音量 / シャッフル / リピートを含む）、操作は `POST /api/remote/*`
-（`play` / `pause` / `resume` / `next` / `prev` / `seek` / `volume` / `shuffle` / `repeat` など）で行います。
+The remote has **play / pause, previous/next, seek, a volume slider, and shuffle / repeat toggles**,
+with state via `GET /api/remote/state` (including volume / shuffle / repeat) and operations via `POST /api/remote/*`
+(`play` / `pause` / `resume` / `next` / `prev` / `seek` / `volume` / `shuffle` / `repeat`, etc.).

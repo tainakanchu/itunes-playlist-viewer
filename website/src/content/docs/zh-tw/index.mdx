@@ -3,7 +3,7 @@ title: Crateforge 文件
 description: 極速 iTunes 風格音樂管理 / DJ 選曲桌面應用程式 Crateforge 的使用指南。
 template: splash
 hero:
-  tagline: 從極速 iTunes 風格的音樂管理，到 DJ 解析、相似度選曲、AI 選曲，一個應用程式全部搞定。
+  tagline: 從極速 iTunes 風格的音樂管理，到 DJ 解析、相似度選曲、AI 選曲。這一套全部搞定。
   actions:
     - text: 從安裝開始
       link: ./guide/install/
@@ -17,56 +17,54 @@ hero:
 
 import { Card, CardGrid } from "@astrojs/starlight/components";
 
-> 🚧 翻訳準備中 / Translation in progress / 翻譯準備中
+## 什麼是 Crateforge
 
-## Crateforge とは
+**Crateforge** 是一款以 Tauri 2 + React 19 + Vite 6 + Rust 打造的極速 iTunes 風格音樂管理桌面應用程式。
+除了 `iTunes Library.xml` 的匯入 / 匯出、本機檔案匯入、CD 擷取、播放清單編輯、本機播放之外，
+還涵蓋了 DJ 取向的解析（BPM / Key (Camelot) / Energy）、相似度選曲、格式轉換、智慧型播放清單，**只用這一個應用程式就能全部完成**。
 
-**Crateforge** は Tauri 2 + React 19 + Vite 6 + Rust 製の、爆速 iTunes 風 音楽管理デスクトップアプリです。
-`iTunes Library.xml` の取り込み / 書き出し、ローカルファイル取り込み、CD リッピング、プレイリスト編集、ローカル再生に加え、
-DJ 向けの解析（BPM / Key (Camelot) / Energy）・類似度選曲・フォーマット変換・スマートプレイリストまで、**このアプリ単体で完結**します。
+> 舊名為「iTunes Playlist Viewer」。以 crate（挖掘、蒐集）+ forge（鍛造、組建）重新命名，象徵透過解析來選曲、鍛造一套 set 的核心精神。
 
-> 旧名は「iTunes Playlist Viewer」です。crate（掘る・集める）+ forge（鍛える・組み上げる）で、解析して選曲しセットを鍛えるという中身を表す名前にリブランドしました。
-
-## 主要機能
+## 主要功能
 
 <CardGrid stagger>
-  <Card title="爆速ライブラリ" icon="rocket">
-    SQLite (WAL) + 索引で 10,000+ トラックでも快適。リストは仮想化で軽快にスクロールできます。
+  <Card title="極速音樂庫" icon="rocket">
+    SQLite (WAL) + 索引，即使有 10,000+ 曲目也順暢無比。清單採用虛擬化，捲動依然輕快。
   </Card>
-  <Card title="iTunes XML 互換" icon="document">
-    入出力とも Apple plist 形式。rekordbox / Serato / Traktor などが読み取れる XML を書き出せます。
+  <Card title="iTunes XML 相容" icon="document">
+    匯入匯出皆採 Apple plist 格式。可匯出 rekordbox / Serato / Traktor 等軟體能讀取的 XML。
   </Card>
   <Card title="DJ 解析" icon="setting">
-    純 Rust の DSP で BPM / Key (Camelot) / Energy / ラウドネスと類似度を解析。Harmonic な「次の一手」を提案します。
+    以純 Rust 的 DSP 解析 BPM / Key (Camelot) / Energy / 響度與相似度。為你提議和聲銜接的「下一手」。
   </Card>
-  <Card title="ローカル再生" icon="seti:audio">
-    rodio (symphonia) で各種フォーマットを直接デコード。Up Next キュー・シャッフル・リピートに対応。
+  <Card title="本機播放" icon="seti:audio">
+    以 rodio (symphonia) 直接解碼各種格式。支援 Up Next 佇列、隨機播放、重複播放。
   </Card>
-  <Card title="スマートプレイリスト" icon="list-format">
-    条件で中身が自動的に決まるプレイリスト。開くたびに最新の状態へ。
+  <Card title="智慧型播放清單" icon="list-format">
+    依條件自動決定內容的播放清單。每次開啟都是最新狀態。
   </Card>
-  <Card title="モバイル & リモコン" icon="laptop">
-    内蔵 API サーバーでスマホ/TV から再生・リモコン操作。モバイルはオフライン DL / 閲覧 / 再生にも対応。
+  <Card title="行動裝置與遙控" icon="laptop">
+    透過內建 API 伺服器，從手機 / TV 進行播放與遙控操作。行動端還支援離線下載 / 瀏覽 / 播放。
   </Card>
-  <Card title="フォーマット変換" icon="random">
-    ffmpeg で MP3 / AAC / Opus / FLAC / ALAC / WAV に変換。タグとカバーアートを引き継ぎます。
+  <Card title="格式轉換" icon="random">
+    以 ffmpeg 轉換為 MP3 / AAC / Opus / FLAC / ALAC / WAV，並沿用標籤與封面圖。
   </Card>
   <Card title="AI 選曲" icon="puzzle">
-    ローカル HTTP API を内蔵。Claude Code プラグイン dj-curator から選曲の叩き台を生成できます。
+    內建本機 HTTP API。可透過 Claude Code 外掛 dj-curator 產生選曲初稿。
   </Card>
 </CardGrid>
 
-## 対応 OS
+## 支援的作業系統
 
-- **Windows** — `.exe` / ポータブル `.zip` / `.msi` / セットアップ `.exe`。アプリ内の自動更新に対応（exe をその場で差し替え）。
-- **macOS** — **未署名** の `.dmg`（Apple Silicon / Intel）。初回起動は Gatekeeper を回避する必要があります。
-- **Linux** — `.AppImage`（単一ファイル）と `.deb`。
+- **Windows** — `.exe` / 可攜式 `.zip` / `.msi` / 安裝程式 `.exe`。支援應用程式內自動更新（就地替換 exe）。
+- **macOS** — **未簽署** 的 `.dmg`（Apple Silicon 原生）。首次啟動需要繞過 Gatekeeper。
+- **Linux** — `.AppImage`（單一檔案）與 `.deb`。
 
-> アプリ内の自動更新は **Windows 専用** です。macOS / Linux は手動更新になります。
+> 應用程式內的自動更新 **僅限 Windows**。macOS / Linux 需手動更新。
 
-## 次のステップ
+## 下一步
 
-- [インストール](./guide/install/) — ダウンロードから初回起動・自動アップデートまで
-- [ライブラリ取り込み](./guide/import/) — iTunes XML / フォルダ取り込み
-- [再生・キュー・Crate](./guide/playback/) — Up Next と DJ 選曲の使い方
-- [DJ 解析](./guide/dj-analysis/) — BPM / Key / Energy / 類似度
+- [安裝](./guide/install/) — 從下載到首次啟動與自動更新
+- [音樂庫匯入](./guide/import/) — iTunes XML / 資料夾匯入
+- [播放、佇列、Crate](./guide/playback/) — Up Next 與 DJ 選曲的用法
+- [DJ 解析](./guide/dj-analysis/) — BPM / Key / Energy / 相似度

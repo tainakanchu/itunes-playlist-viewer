@@ -1,62 +1,60 @@
 ---
-title: 再生・キュー・Crate
-description: ローカル再生、Up Next キュー、DJ 選曲用の Crate、Now Playing の BPM / Key / Energy 表示。
+title: Playback, queue & Crate
+description: Local playback, the Up Next queue, the Crate for DJ curation, and the Now Playing BPM / Key / Energy display.
 ---
 
-> 🚧 翻訳準備中 / Translation in progress
+Crateforge supports local playback (rodio + symphonia) and decodes a wide range of formats directly.
+You build up playback and curation in the right rail's **Now Playing / Up Next / Crate**.
 
-Crateforge はローカル再生（rodio + symphonia）に対応し、各種フォーマットを直接デコードします。
-右レールの **Now Playing / Up Next / Crate** で再生と選曲を組み立てます。
+> Screenshots to be added
 
-> 画像は後日追加
+## Playing
 
-## 再生する
+- **Double-click** a track to play it.
+- `Space` to **play / pause**, `Enter` to play the focused/selected row.
+- `J` / `K` for previous / next track, `Shift + ←` / `Shift + →` to seek 5 seconds.
+- `S` for shuffle, `R` for repeat (off / all / one). `Ctrl + ↑` / `Ctrl + ↓` for volume.
 
-- トラックを **ダブルクリック** で再生します。
-- `Space` で **再生 / 一時停止**、`Enter` でフォーカス/選択行を再生。
-- `J` / `K` で前 / 次の曲、`Shift + ←` / `Shift + →` で 5 秒シーク。
-- `S` でシャッフル、`R` でリピート（オフ / 全曲 / 1 曲）。`Ctrl + ↑` / `Ctrl + ↓` で音量。
+In the player bar, drag the seek bar to scrub, click the time display to toggle "elapsed ⇄ remaining,"
+and the volume bar has a knob and a % display. The waveform is rendered as a real waveform from analysis peaks.
 
-プレイヤーバーでは、シークバーをドラッグしてスクラブ、時間表示クリックで「経過 ⇄ 残り」を切り替え、
-音量バーにつまみと % 表示があります。波形は解析ピークによる実波形で描画されます。
-
-曲の自動送りは **Rust 側のワーカースレッド** が駆動します。ウィンドウを最小化していても再生が継続し、
-次の曲のファイルが見つからない場合は自動でスキップして再生を続けます。
-再生に失敗した曲はトーストで通知し、失敗内容（ファイル不在 / デコード失敗 / デコーダのクラッシュ）を
-`crateforge.log` に記録します。
+Automatic track advance is driven by a **worker thread on the Rust side**. Playback continues even when the window is minimized,
+and if the next track's file can't be found, it skips automatically and keeps playing.
+Tracks that fail to play are notified via a toast, and the failure details (file missing / decode failure / decoder crash) are
+logged to `crateforge.log`.
 
 ### ReplayGain
 
-設定で ReplayGain（曲ごとの音量正規化、−18 LUFS 基準）をトグルできます。
+You can toggle ReplayGain (per-track volume normalization, −18 LUFS reference) in settings.
 
-## Up Next（再生キュー）
+## Up Next (playback queue)
 
-右レールの **Up Next** が、これから再生されるキューです。
+The **Up Next** in the right rail is the queue of what will be played next.
 
-- コンテキストメニューの **「Play Next（次に再生）」** で、選択した曲（複数可・選択順を保持）を
-  再生中の曲の直後に割り込ませます。
-- 行のホバーで出る **「×」** でキューから削除、**ドラッグ＆ドロップ** で並び替えできます。
-- ヘッダに **件数・合計時間・シャッフルバッジ** を表示します。
-- シャッフルは実際の再生順（Fisher–Yates）を事前計算するので、Up Next にこれから流れる順序が反映されます。
+- **"Play Next"** in the context menu inserts the selected tracks (multiple supported, selection order preserved)
+  right after the currently playing track.
+- The **"×"** that appears on row hover removes from the queue, and you can reorder with **drag and drop**.
+- The header shows the **count, total time, and a shuffle badge**.
+- Shuffle precomputes the actual play order (Fisher–Yates), so Up Next reflects the order that will actually play.
 
-## Crate（DJ 選曲）
+## Crate (DJ curation)
 
-右レールの **Crate** は、選曲の叩き台を組み立てるためのステージング領域です。
+The **Crate** in the right rail is a staging area for building a starting point for your set.
 
-- 曲を Crate に追加していき、まとまったら **「プレイリストとして保存」** できます。
-- **smooth（スムーズな並び替え）** ボタンで、解析値をもとに貪欲最近傍で滑らかな流れに自動ソートします。
-- Crate は永続化されません（プレイリストとして保存すると残ります）。
+- Add tracks to the Crate, and once you have a batch you can **"Save as playlist."**
+- The **smooth** button auto-sorts into a smooth flow using greedy nearest-neighbor based on analysis values.
+- The Crate is not persisted (it stays if you save it as a playlist).
 
 :::tip
-[類似度選曲](../dj-analysis/)（Similar タブ）や [AI 選曲](../api-server/)（dj-curator）で候補を集め、
-Crate で叩き台にして、最終的な曲順は GUI で詰める、という流れが想定されています。
+The intended flow is: gather candidates with [similarity-based curation](../dj-analysis/) (the Similar tab) or [AI curation](../api-server/) (dj-curator),
+use the Crate as a starting point, and finalize the track order in the GUI.
 :::
 
-## Now Playing（BPM / Key / Energy）
+## Now Playing (BPM / Key / Energy)
 
-右レールの **Now Playing** には、再生中の曲のアートワークとともに **Key / Energy** を表示します。
-BPM・Key (Camelot)・Energy は[解析](../dj-analysis/)済みの曲で表示され、つなぎの判断に使えます。
+The **Now Playing** in the right rail shows **Key / Energy** along with the artwork of the playing track.
+BPM, Key (Camelot), and Energy are shown for [analyzed](../dj-analysis/) tracks and help you decide on transitions.
 
-**Similar** タブでは、再生中（または右クリック → 「Find similar」）の曲に対して
-Camelot キー互換 + テンポ近接の「次の一手」を提示します（Harmonic トグルで絞り込み）。
-結果は Crate やキューに追加できます。すべて追加済みなら「Add all」は無効化されます（"All added"）。
+The **Similar** tab presents "next moves" — Camelot-key compatible + close in tempo — for the playing track
+(or via right-click → "Find similar") (narrow with the Harmonic toggle).
+You can add results to the Crate (or double-click to play). When everything has been added, "Add all" is disabled ("All added").
