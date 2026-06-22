@@ -1,10 +1,12 @@
 // Playlist 詳細。プレイリスト名 + 曲数 + 一括ダウンロードのヘッダを出し、
 // 曲を一覧する。タップでその位置からプレイリスト全体をキューにして再生する。
 
+import { useMemo } from "react";
 import { FlatList, Text, View, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { type Track, useConnection, usePlayer } from "@crateforge/core";
+import { type Track, useConnection, usePlayer, useDownloads } from "@crateforge/core";
 import { PALETTE } from "@/constants/brand";
 import Screen from "@/components/Screen";
 import TrackRow from "@/components/TrackRow";
@@ -19,10 +21,20 @@ export default function PlaylistScreen() {
   const client = useConnection((s) => s.client);
   const detailQuery = usePlaylist(playlistId);
   const query = usePlaylistTracks(playlistId);
-  const tracks = query.data ?? [];
   const currentTrackId = usePlayer((s) => s.current()?.trackId ?? null);
 
-  const title = detailQuery.data?.name ?? "プレイリスト";
+  // オフライン保存したプレイリストとその曲（client が無いときに使う）。
+  const dp = useDownloads((s) => s.playlists[playlistId]);
+  const entries = useDownloads((s) => s.entries);
+  const offlineTracks = useMemo(() => {
+    if (!dp) return [] as Track[];
+    return dp.trackIds
+      .map((tid) => entries[tid]?.track)
+      .filter((t): t is Track => t != null);
+  }, [dp, entries]);
+
+  const tracks = client ? (query.data ?? []) : offlineTracks;
+  const title = client ? (detailQuery.data?.name ?? "プレイリスト") : (dp?.name ?? "プレイリスト");
 
   const onPressTrack = (index: number) => {
     usePlayer.getState().setQueue(tracks, index);
@@ -40,19 +52,48 @@ export default function PlaylistScreen() {
             <Text style={styles.count}>{tracks.length}曲</Text>
           ) : null}
         </View>
-        {tracks.length > 0 ? (
-          <DownloadButton tracks={tracks} label="ダウンロード" />
+        {client && tracks.length > 0 ? (
+          <DownloadButton tracks={tracks} playlist={{ id: playlistId, name: title }} label="ダウンロード" />
         ) : null}
       </View>
 
+      {/* オフライン時のバナー */}
       {!client ? (
-        <EmptyView message="サーバーに接続してください" icon="wifi-outline" />
-      ) : query.isLoading ? (
-        <Loading />
-      ) : query.isError ? (
-        <ErrorView message={errorText(query.error)} onRetry={() => query.refetch()} />
-      ) : tracks.length === 0 ? (
-        <EmptyView message="このプレイリストは空です" icon="musical-notes-outline" />
+        <View style={styles.offlineBanner}>
+          <Ionicons name="cloud-offline-outline" size={15} color={PALETTE.textDim} />
+          <Text style={styles.offlineBannerText}>オフライン再生</Text>
+        </View>
+      ) : null}
+
+      {client ? (
+        query.isLoading ? (
+          <Loading />
+        ) : query.isError ? (
+          <ErrorView message={errorText(query.error)} onRetry={() => query.refetch()} />
+        ) : tracks.length === 0 ? (
+          <EmptyView message="このプレイリストは空です" icon="musical-notes-outline" />
+        ) : (
+          <FlatList
+            data={tracks}
+            keyExtractor={(t) => String(t.trackId)}
+            renderItem={({ item, index }: { item: Track; index: number }) => (
+              <TrackRow
+                track={item}
+                index={index + 1}
+                active={currentTrackId === item.trackId}
+                onPress={() => onPressTrack(index)}
+                onLongPress={() => usePlayer.getState().enqueueNext(item)}
+                trailing={<DownloadButton track={item} />}
+              />
+            )}
+            contentContainerStyle={styles.listContent}
+          />
+        )
+      ) : offlineTracks.length === 0 ? (
+        <EmptyView
+          message="このプレイリストはオフライン保存されていません"
+          icon="cloud-offline-outline"
+        />
       ) : (
         <FlatList
           data={tracks}
@@ -104,5 +145,24 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 96,
+  },
+  offlineBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginHorizontal: 16,
+    marginTop: 0,
+    marginBottom: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: PALETTE.surface,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+  },
+  offlineBannerText: {
+    color: PALETTE.textDim,
+    fontSize: 13,
+    fontWeight: "600",
   },
 });

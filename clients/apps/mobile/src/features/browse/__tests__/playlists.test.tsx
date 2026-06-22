@@ -141,13 +141,16 @@ describe("PlaylistsScreen", () => {
     expect(await screen.findByText("Empty Folder")).toBeTruthy();
   });
 
-  test("shows connect prompt when no client", async () => {
+  test("shows offline empty state when no client and no downloaded playlists", async () => {
+    // client 未設定・DL済みプレイリスト0件 → オフライン空表示と接続導線を出す。
     const Wrapper = createQueryWrapper();
     await render(
       <Wrapper>
         <PlaylistsScreen />
       </Wrapper>,
     );
-    expect(await screen.findByText("サーバーに接続してください")).toBeTruthy();
+    expect(await screen.findByText("オフライン保存されたプレイリストはありません")).toBeTruthy();
+    // 接続導線のボタンテキストも表示される。
+    expect(screen.getByText("サーバーに接続")).toBeTruthy();
   });
 });

@@ -9,7 +9,7 @@
 import { Directory, File, Paths } from "expo-file-system";
 import { create } from "zustand";
 
-import type { DownloadEntry, DownloadQuality, Track } from "../lib/types";
+import type { DownloadedPlaylist, DownloadEntry, DownloadQuality, Track } from "../lib/types";
 import { useConnection } from "./connection";
 import { useSettings } from "./settings";
 
@@ -34,6 +34,11 @@ function indexFile(): File {
   return new File(downloadsDir(), "index.json");
 }
 
+/** プレイリストコレクションの永続化先 File（playlists.json）。 */
+function playlistsFile(): File {
+  return new File(downloadsDir(), "playlists.json");
+}
+
 /** original 保存時の拡張子を track のロケーションから推定（不明なら m4a）。 */
 function inferExt(track: Track): string {
   const path = track.locationPath ?? track.locationRaw ?? "";
@@ -51,6 +56,8 @@ export interface DownloadsState {
   entries: Record<number, DownloadEntry>;
   /** trackId → ダウンロード進行中フラグ。 */
   downloading: Record<number, boolean>;
+  /** playlistId → オフライン保存したプレイリスト。 */
+  playlists: Record<number, DownloadedPlaylist>;
 
   /** 起動時に index.json を読み込む（無ければ何もしない）。 */
   hydrate: () => Promise<void>;
@@ -64,6 +71,12 @@ export interface DownloadsState {
   downloadMany: (tracks: Track[]) => Promise<void>;
   /** album 名でライブラリから曲を引いて一括ダウンロード。 */
   downloadAlbum: (albumName: string) => Promise<void>;
+  /** プレイリストをコレクションとして記録しつつ、曲を一括ダウンロードする。 */
+  downloadPlaylist: (playlistId: number, name: string, tracks: Track[]) => Promise<void>;
+  /** 保存済みプレイリストのコレクション記録を削除する（曲ファイルは消さない）。 */
+  removeDownloadedPlaylist: (playlistId: number) => void;
+  /** 保存済みプレイリストを取得（無ければ null）。 */
+  getDownloadedPlaylist: (playlistId: number) => DownloadedPlaylist | null;
 
   /** ファイルとエントリを削除する。 */
   removeDownload: (trackId: number) => Promise<void>;
@@ -86,25 +99,58 @@ function persist(entries: Record<number, DownloadEntry>): void {
   }
 }
 
+/** playlists を playlists.json に書き出す（失敗は無視）。 */
+function persistPlaylists(playlists: Record<number, DownloadedPlaylist>): void {
+  try {
+    ensureDir();
+    const f = playlistsFile();
+    if (!f.exists) f.create();
+    f.write(JSON.stringify(Object.values(playlists)));
+  } catch {
+    // 永続化失敗はメモリ上の状態で継続。
+  }
+}
+
 export const useDownloads = create<DownloadsState>((set, get) => ({
   entries: {},
   downloading: {},
+  playlists: {},
 
   hydrate: async () => {
     try {
       const f = indexFile();
-      if (!f.exists) return;
-      const text = await f.text();
-      if (!text) return;
-      const parsed = JSON.parse(text) as DownloadEntry[];
-      if (!Array.isArray(parsed)) return;
-      const entries: Record<number, DownloadEntry> = {};
-      for (const e of parsed) {
-        if (e && typeof e.trackId === "number") entries[e.trackId] = e;
+      if (f.exists) {
+        const text = await f.text();
+        if (text) {
+          const parsed = JSON.parse(text) as DownloadEntry[];
+          if (Array.isArray(parsed)) {
+            const entries: Record<number, DownloadEntry> = {};
+            for (const e of parsed) {
+              if (e && typeof e.trackId === "number") entries[e.trackId] = e;
+            }
+            set({ entries });
+          }
+        }
       }
-      set({ entries });
     } catch {
       // index.json 不在・破損は空のまま起動。
+    }
+    // プレイリストコレクションも復元（別ファイル、無ければ空）。
+    try {
+      const pf = playlistsFile();
+      if (pf.exists) {
+        const ptext = await pf.text();
+        const pparsed = ptext ? (JSON.parse(ptext) as DownloadedPlaylist[]) : [];
+        if (Array.isArray(pparsed)) {
+          const playlists: Record<number, DownloadedPlaylist> = {};
+          for (const p of pparsed) {
+            if (p && typeof p.playlistId === "number") playlists[p.playlistId] = p;
+          }
+          set({ playlists });
+        }
+      }
+    } catch {
+      // playlists.json 不在・破損は空のまま。
     }
   },
 
@@ -166,6 +212,30 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
     }
   },
 
+  downloadPlaylist: async (playlistId, name, tracks) => {
+    // 先にコレクションを記録（DL途中でも一覧に出るように）。
+    set((s) => {
+      const playlists = {
+        ...s.playlists,
+        [playlistId]: { playlistId, name, trackIds: tracks.map((t) => t.trackId), createdAt: Date.now() },
+      };
+      persistPlaylists(playlists);
+      return { playlists };
+    });
+    await get().downloadMany(tracks);
+  },
+
+  removeDownloadedPlaylist: (playlistId) => {
+    set((s) => {
+      const playlists = { ...s.playlists };
+      delete playlists[playlistId];
+      persistPlaylists(playlists);
+      return { playlists };
+    });
+  },
+
+  getDownloadedPlaylist: (playlistId) => get().playlists[playlistId] ?? null,
+
   removeDownload: async (trackId) => {
     const entry = get().entries[trackId];
     if (!entry) return;
@@ -195,7 +265,8 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
     }
     const empty: Record<number, DownloadEntry> = {};
     persist(empty);
-    set({ entries: empty });
+    persistPlaylists({});
+    set({ entries: empty, playlists: {} });
   },
 
   totalBytes: () =>

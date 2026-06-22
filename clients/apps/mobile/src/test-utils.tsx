@@ -64,5 +64,5 @@ export function resetTestState(): void {
     token: null,
     error: null,
   });
-  useDownloads.setState({ entries: {}, downloading: {} });
+  useDownloads.setState({ entries: {}, downloading: {}, playlists: {} });
 }

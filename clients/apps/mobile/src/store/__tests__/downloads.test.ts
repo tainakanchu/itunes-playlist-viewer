@@ -53,7 +53,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   resetTestState();
   // ストアを既定へ。
-  useDownloads.setState({ entries: {}, downloading: {} });
+  useDownloads.setState({ entries: {}, downloading: {}, playlists: {} });
   useSettings.setState({ downloadQuality: "aac192" });
 });
 
@@ -148,5 +148,42 @@ describe("useDownloads", () => {
     expect(useDownloads.getState().isDownloaded(11)).toBe(true);
     expect(useDownloads.getState().isDownloaded(12)).toBe(true);
     expect(useDownloads.getState().count()).toBe(2);
+  });
+
+  it("downloadPlaylist がプレイリストを記録しつつ曲を一括ダウンロードする", async () => {
+    setTestConnection({ token: "tok" });
+    const tracks = [
+      makeTrack({ trackId: 21, id: 21 }),
+      makeTrack({ trackId: 22, id: 22 }),
+    ];
+
+    await useDownloads.getState().downloadPlaylist(7, "My Playlist", tracks);
+
+    // コレクションが正しく記録される（名前・順序保持の trackIds）。
+    const dp = useDownloads.getState().playlists[7];
+    expect(dp).toBeTruthy();
+    expect(dp.playlistId).toBe(7);
+    expect(dp.name).toBe("My Playlist");
+    expect(dp.trackIds).toEqual([21, 22]);
+    expect(useDownloads.getState().getDownloadedPlaylist(7)).toEqual(dp);
+
+    // 曲も実際にダウンロード・記録される。
+    expect(downloadFileAsync).toHaveBeenCalledTimes(2);
+    expect(useDownloads.getState().isDownloaded(21)).toBe(true);
+    expect(useDownloads.getState().isDownloaded(22)).toBe(true);
+  });
+
+  it("removeDownloadedPlaylist がコレクション記録を消す（曲は残す）", async () => {
+    setTestConnection({ token: "tok" });
+    const tracks = [makeTrack({ trackId: 31, id: 31 })];
+    await useDownloads.getState().downloadPlaylist(9, "PL", tracks);
+    expect(useDownloads.getState().playlists[9]).toBeTruthy();
+
+    useDownloads.getState().removeDownloadedPlaylist(9);
+
+    expect(useDownloads.getState().playlists[9]).toBeUndefined();
+    expect(useDownloads.getState().getDownloadedPlaylist(9)).toBeNull();
+    // 曲ファイル/エントリは消さない。
+    expect(useDownloads.getState().isDownloaded(31)).toBe(true);
   });
 });

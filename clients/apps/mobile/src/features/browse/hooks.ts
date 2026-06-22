@@ -5,7 +5,7 @@
 import { useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { type Album, type Artist, type ArtistGrouping, type GenreTagCount, type Playlist, type PlaylistDetail, type SimilarHit, type Track, type TracksQuery, trackArtist, trackAlbumArtist, useConnection } from "@crateforge/core";
+import { type Album, type Artist, type ArtistGrouping, type GenreTagCount, type Playlist, type PlaylistDetail, type SimilarHit, type Track, type TracksQuery, trackArtist, trackAlbumArtist, useConnection, useSettings } from "@crateforge/core";
 
 /** 大規模ライブラリでも全件取得（仮想リスト前提）。500/200 上限の撤廃。 */
 export const BROWSE_LIMIT = 100000;
@@ -80,12 +80,18 @@ export function useAlbumTracks(album: string | null) {
   });
 }
 
-/** アーティスト一覧（クライアント側で全曲から集計）。grouping で束ね方を切替。enabled=false で取得抑止。 */
-export function useArtists(enabled = true, grouping: ArtistGrouping = "artist") {
+/** アーティスト一覧（クライアント側で全曲から集計）。enabled=false で取得抑止。
+ * grouping を引数で上書き可能。省略時はストアの artistGrouping を読む。
+ * useCallback で select をメモ化し、grouping 変更時に select 参照が変わって再集計される。
+ */
+export function useArtists(enabled = true, grouping?: ArtistGrouping) {
   const client = useConnection((s) => s.client);
+  // 引数省略時はストアの設定を使う（index.tsx が引数なしで呼ぶため）。
+  const storedGrouping = useSettings((s) => s.artistGrouping);
+  const resolvedGrouping = grouping ?? storedGrouping;
   const select = useCallback(
     (tracks: Track[]): Artist[] => {
-      const nameOf = grouping === "albumArtist" ? trackAlbumArtist : trackArtist;
+      const nameOf = resolvedGrouping === "albumArtist" ? trackAlbumArtist : trackArtist;
       const map = new Map<string, { trackCount: number; sampleTrackId: number }>();
       for (const t of tracks) {
         const name = nameOf(t);
@@ -100,7 +106,7 @@ export function useArtists(enabled = true, grouping: ArtistGrouping = "artist") 
         .map(([artist, { trackCount, sampleTrackId }]) => ({ artist, trackCount, sampleTrackId }))
         .sort((a, b) => a.artist.localeCompare(b.artist, undefined, { sensitivity: "base" }));
     },
-    [grouping],
+    [resolvedGrouping],
   );
   return useQuery<Track[], Error, Artist[]>({
     queryKey: ["tracks", { limit: BROWSE_LIMIT }],
@@ -110,15 +116,21 @@ export function useArtists(enabled = true, grouping: ArtistGrouping = "artist") 
   });
 }
 
-/** 指定アーティストの曲（artist が null のときは無効）。grouping で束ね方を合わせる。 */
-export function useArtistTracks(artist: string | null, grouping: ArtistGrouping = "artist") {
+/** 指定アーティストの曲（artist が null のときは無効）。
+ * grouping を引数で上書き可能。省略時はストアの artistGrouping を使う。
+ * useCallback で select をメモ化し、grouping/artist 変更時に再フィルタされる。
+ */
+export function useArtistTracks(artist: string | null, grouping?: ArtistGrouping) {
   const client = useConnection((s) => s.client);
+  // 引数省略時はストアから読む。
+  const storedGrouping = useSettings((s) => s.artistGrouping);
+  const resolvedGrouping = grouping ?? storedGrouping;
   const select = useCallback(
     (tracks: Track[]): Track[] => {
-      const nameOf = grouping === "albumArtist" ? trackAlbumArtist : trackArtist;
+      const nameOf = resolvedGrouping === "albumArtist" ? trackAlbumArtist : trackArtist;
       return tracks.filter((t) => nameOf(t) === artist);
     },
-    [artist, grouping],
+    [artist, resolvedGrouping],
   );
   return useQuery<Track[], Error, Track[]>({
     queryKey: ["tracks", { limit: BROWSE_LIMIT }],

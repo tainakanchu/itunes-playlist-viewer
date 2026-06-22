@@ -9,7 +9,7 @@ import { Pressable, ScrollView, Text, View, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import Screen from "@/components/Screen";
-import { type TrackMetaField, formatDuration, useConnection, useDownloads, useSettings } from "@crateforge/core";
+import { type ArtistGrouping, type TrackMetaField, formatDuration, useConnection, useDownloads, useSettings } from "@crateforge/core";
 import QualityPicker from "@/features/offline/QualityPicker";
 import { formatBytes } from "@/features/offline/format";
 import { BRAND, PALETTE } from "@/constants/brand";
@@ -52,6 +52,8 @@ export default function SettingsScreen() {
   const setDownloadQuality = useSettings((s) => s.setDownloadQuality);
   const rowMetaFields = useSettings((s) => s.rowMetaFields);
   const toggleRowMetaField = useSettings((s) => s.toggleRowMetaField);
+  const artistGrouping = useSettings((s) => s.artistGrouping);
+  const setArtistGrouping = useSettings((s) => s.setArtistGrouping);
   const downloadEntries = useDownloads((s) => s.entries);
   const downloadCount = Object.keys(downloadEntries).length;
   const downloadBytes = Object.values(downloadEntries).reduce(
@@ -200,6 +202,33 @@ export default function SettingsScreen() {
             </View>
             <Ionicons name="chevron-forward" size={18} color={PALETTE.textDim} />
           </Pressable>
+        </View>
+
+        {/* アーティストの束ね方 */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>アーティストの束ね方</Text>
+          <View style={styles.chipRow}>
+            {(
+              [
+                { value: "artist", label: "アーティスト" },
+                { value: "albumArtist", label: "アルバムアーティスト" },
+              ] as { value: ArtistGrouping; label: string }[]
+            ).map(({ value, label }) => {
+              const active = artistGrouping === value;
+              return (
+                <Pressable
+                  key={value}
+                  onPress={() => setArtistGrouping(value)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: active }}
+                  accessibilityLabel={label}
+                  style={[styles.chip, active && styles.chipActive]}
+                >
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
 
         <View style={styles.card}>

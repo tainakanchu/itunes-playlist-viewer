@@ -19,6 +19,8 @@ export interface DownloadButtonProps {
   tracks?: Track[];
   /** album 一括モード。 */
   albumName?: string;
+  /** プレイリストとして記録しつつ一括DLする（tracks と併用）。 */
+  playlist?: { id: number; name: string };
   size?: number;
   /** アイコン右に出す任意ラベル。 */
   label?: string;
@@ -28,6 +30,7 @@ export default function DownloadButton({
   track,
   tracks,
   albumName,
+  playlist,
   size = 22,
   label,
 }: DownloadButtonProps) {
@@ -37,6 +40,7 @@ export default function DownloadButton({
   const removeDownload = useDownloads((s) => s.removeDownload);
   const downloadMany = useDownloads((s) => s.downloadMany);
   const downloadAlbum = useDownloads((s) => s.downloadAlbum);
+  const downloadPlaylist = useDownloads((s) => s.downloadPlaylist);
 
   // バッチ（tracks[]/album）の進行状態はローカルに持つ。
   const [batchBusy, setBatchBusy] = useState(false);
@@ -82,7 +86,8 @@ export default function DownloadButton({
     if (batchBusy) return;
     setBatchBusy(true);
     try {
-      if (tracks && tracks.length) await downloadMany(tracks);
+      if (playlist && tracks && tracks.length) await downloadPlaylist(playlist.id, playlist.name, tracks);
+      else if (tracks && tracks.length) await downloadMany(tracks);
       else if (albumName) await downloadAlbum(albumName);
     } finally {
       setBatchBusy(false);

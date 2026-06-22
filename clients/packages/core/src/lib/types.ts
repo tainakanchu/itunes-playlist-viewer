@@ -152,6 +152,15 @@ export interface DownloadEntry {
   createdAt: number;
 }
 
+/** オフライン保存したプレイリスト。メンバーはトラックメタに無いので保存時に記録する。 */
+export interface DownloadedPlaylist {
+  playlistId: number;
+  name: string;
+  /** 保存時点のメンバー trackId（順序保持）。 */
+  trackIds: number[];
+  createdAt: number;
+}
+
 /** `GET /api/tracks/{id}/similar` のクエリ。 */
 export interface SimilarQuery {
   limit?: number;

@@ -9,7 +9,7 @@ import { Alert, FlatList, Pressable, Text, TextInput, View, StyleSheet } from "r
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
-import { type Album, type Artist, type ArtistGrouping, type SortField, type Track, useConnection, usePlayer, useDownloads, useSettings } from "@crateforge/core";
+import { type Album, type Artist, type DownloadedPlaylist, type SortField, type Track, useConnection, usePlayer, useDownloads, useSettings } from "@crateforge/core";
 import { BRAND, PALETTE } from "@/constants/brand";
 import Screen from "@/components/Screen";
 import TrackRow from "@/components/TrackRow";
@@ -57,10 +57,6 @@ export default function LibraryScreen() {
   const trackSort = useSettings((s) => s.trackSort);
   const setTrackSort = useSettings((s) => s.setTrackSort);
 
-  // アーティストモードの束ね方設定。
-  const artistGrouping = useSettings((s) => s.artistGrouping);
-  const setArtistGrouping = useSettings((s) => s.setArtistGrouping);
-
   // アクティブなモードだけ取得する（既定アルバム時に全曲フェッチしない＝重さ回避）。
   const tracksQuery = useTracks(
     {
@@ -74,7 +70,7 @@ export default function LibraryScreen() {
   );
   const genresQuery = useGenres();
   const albumsQuery = useAlbums(mode === "albums");
-  const artistsQuery = useArtists(mode === "artists", artistGrouping);
+  const artistsQuery = useArtists(mode === "artists");
 
   const tracks = tracksQuery.data ?? [];
   const currentTrackId = usePlayer((s) => s.current()?.trackId ?? null);
@@ -252,9 +248,7 @@ export default function LibraryScreen() {
           keyboardShouldPersistTaps="handled"
         />
       ) : (
-        <>
-          <ArtistGroupToggle value={artistGrouping} onChange={setArtistGrouping} />
-          <FlatList
+        <FlatList
           data={artists}
           keyExtractor={(a) => a.artist}
           renderItem={({ item }: { item: Artist }) => (
@@ -277,8 +271,7 @@ export default function LibraryScreen() {
           }
           contentContainerStyle={artists.length === 0 ? styles.emptyContent : styles.listContent}
           keyboardShouldPersistTaps="handled"
-          />
-        </>
+        />
       )}
     </Screen>
   );
@@ -286,11 +279,13 @@ export default function LibraryScreen() {
 
 /**
  * オフライン（未接続）時の Library 表示。
- * ダウンロード済みがあれば再生可能な一覧を出し、無ければ接続導線を出す。
+ * 上部に「コレクション」セクション（DL済みアルバム・プレイリスト）を表示し、
+ * その下に全ダウンロード済み曲の一覧を出す。何もなければ接続導線。
  */
 function OfflineLibrary() {
   const router = useRouter();
   const entries = useDownloads((s) => s.entries);
+  const playlists = useDownloads((s) => s.playlists);
   const currentTrackId = usePlayer((s) => s.current()?.trackId ?? null);
 
   // 新しい順（永続データは Record なので毎回整列）。
@@ -301,6 +296,27 @@ function OfflineLibrary() {
         .map((e) => e.track),
     [entries],
   );
+
+  // entries から album 名でグルーピングしてアルバム一覧を導出する（album が空の曲は除外）。
+  const offlineAlbums = useMemo(() => {
+    const albumMap = new Map<string, number>();
+    for (const e of Object.values(entries)) {
+      if (!e.track.album) continue;
+      albumMap.set(e.track.album, (albumMap.get(e.track.album) ?? 0) + 1);
+    }
+    return Array.from(albumMap.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [entries]);
+
+  // DL済みプレイリスト（新しい順）。
+  const offlinePlaylists = useMemo(
+    () => Object.values(playlists).sort((a, b) => b.createdAt - a.createdAt),
+    [playlists],
+  );
+
+  const hasCollection = offlineAlbums.length > 0 || offlinePlaylists.length > 0;
+  const hasAnything = tracks.length > 0 || hasCollection;
 
   const playFrom = (index: number) => {
     usePlayer.getState().setQueue(tracks, index);
@@ -318,7 +334,7 @@ function OfflineLibrary() {
         </Text>
       </View>
 
-      {tracks.length === 0 ? (
+      {!hasAnything ? (
         <>
           <EmptyView message="ダウンロード済みの曲はありません" icon="cloud-offline-outline" />
           <View style={styles.offlineActions}>
@@ -344,10 +360,102 @@ function OfflineLibrary() {
               onPress={() => playFrom(index)}
             />
           )}
+          ListHeaderComponent={
+            hasCollection ? (
+              <OfflineCollectionHeader
+                albums={offlineAlbums}
+                playlists={offlinePlaylists}
+              />
+            ) : (
+              <Text style={styles.sectionHeader}>すべてのダウンロード</Text>
+            )
+          }
           contentContainerStyle={styles.listContent}
         />
       )}
     </Screen>
+  );
+}
+
+/**
+ * オフライン時のコレクションセクション（アルバム・プレイリスト）。
+ * OfflineLibrary の FlatList の ListHeaderComponent として使う。
+ */
+function OfflineCollectionHeader({
+  albums,
+  playlists,
+}: {
+  albums: { name: string; count: number }[];
+  playlists: DownloadedPlaylist[];
+}) {
+  const router = useRouter();
+  return (
+    <View>
+      <Text style={styles.sectionHeader}>コレクション</Text>
+
+      {/* DL済みアルバム */}
+      {albums.length > 0 ? (
+        <>
+          <Text style={styles.collectionSubHeader}>アルバム</Text>
+          {albums.map((a) => (
+            <Pressable
+              key={a.name}
+              onPress={() => router.push(`/album/${encodeURIComponent(a.name)}`)}
+              accessibilityRole="button"
+              accessibilityLabel={a.name}
+              style={({ pressed }) => [styles.collectionRow, pressed && styles.pressed]}
+            >
+              <Ionicons
+                name="albums-outline"
+                size={20}
+                color={PALETTE.textDim}
+                style={styles.collectionIcon}
+              />
+              <View style={styles.collectionText}>
+                <Text style={styles.collectionName} numberOfLines={1}>
+                  {a.name}
+                </Text>
+                <Text style={styles.collectionMeta}>{a.count}曲</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={PALETTE.textFaint} />
+            </Pressable>
+          ))}
+        </>
+      ) : null}
+
+      {/* DL済みプレイリスト */}
+      {playlists.length > 0 ? (
+        <>
+          <Text style={styles.collectionSubHeader}>プレイリスト</Text>
+          {playlists.map((p) => (
+            <Pressable
+              key={p.playlistId}
+              onPress={() => router.push(`/playlist/${p.playlistId}`)}
+              accessibilityRole="button"
+              accessibilityLabel={p.name}
+              style={({ pressed }) => [styles.collectionRow, pressed && styles.pressed]}
+            >
+              <Ionicons
+                name="list"
+                size={20}
+                color={PALETTE.textDim}
+                style={styles.collectionIcon}
+              />
+              <View style={styles.collectionText}>
+                <Text style={styles.collectionName} numberOfLines={1}>
+                  {p.name}
+                </Text>
+                <Text style={styles.collectionMeta}>{p.trackIds.length}曲</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={PALETTE.textFaint} />
+            </Pressable>
+          ))}
+        </>
+      ) : null}
+
+      {/* 全曲セクションの見出し */}
+      <Text style={styles.sectionHeader}>すべてのダウンロード</Text>
+    </View>
   );
 }
 
@@ -374,43 +482,6 @@ function ModeToggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
           </Pressable>
         );
       })}
-    </View>
-  );
-}
-
-/** アーティストの束ね方トグル（アーティスト / アルバムアーティスト）。 */
-function ArtistGroupToggle({
-  value,
-  onChange,
-}: {
-  value: ArtistGrouping;
-  onChange: (g: ArtistGrouping) => void;
-}) {
-  const OPTIONS: { value: ArtistGrouping; label: string }[] = [
-    { value: "artist", label: "アーティスト" },
-    { value: "albumArtist", label: "アルバムアーティスト" },
-  ];
-  return (
-    <View style={styles.groupBar}>
-      <Text style={styles.groupLabel}>束ね方</Text>
-      <View style={styles.groupToggle}>
-        {OPTIONS.map(({ value: v, label }) => {
-          const active = value === v;
-          return (
-            <Pressable
-              key={v}
-              onPress={() => onChange(v)}
-              accessibilityRole="button"
-              accessibilityState={{ selected: active }}
-              style={[styles.groupSegment, active && styles.groupSegmentActive]}
-            >
-              <Text style={[styles.groupSegmentText, active && styles.groupSegmentTextActive]}>
-                {label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
     </View>
   );
 }
@@ -493,46 +564,6 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.7,
   },
-  groupBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginHorizontal: 16,
-    marginTop: 8,
-  },
-  groupLabel: {
-    color: PALETTE.textFaint,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  groupToggle: {
-    flexDirection: "row",
-    flex: 1,
-    gap: 4,
-    padding: 3,
-    borderRadius: 9,
-    backgroundColor: PALETTE.surface,
-    borderWidth: 1,
-    borderColor: PALETTE.border,
-  },
-  groupSegment: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  groupSegmentActive: {
-    backgroundColor: PALETTE.accent,
-  },
-  groupSegmentText: {
-    color: PALETTE.textDim,
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  groupSegmentTextActive: {
-    color: BRAND.accentText,
-  },
   listContent: {
     paddingBottom: 96,
   },
@@ -575,5 +606,50 @@ const styles = StyleSheet.create({
     color: BRAND.accentText,
     fontSize: 15,
     fontWeight: "700",
+  },
+  sectionHeader: {
+    color: PALETTE.textDim,
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 4,
+  },
+  collectionSubHeader: {
+    color: PALETTE.textFaint,
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 2,
+  },
+  collectionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: PALETTE.border,
+  },
+  collectionIcon: {
+    marginRight: 12,
+  },
+  collectionText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  collectionName: {
+    color: PALETTE.text,
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  collectionMeta: {
+    color: PALETTE.textFaint,
+    fontSize: 13,
+    marginTop: 1,
   },
 });
