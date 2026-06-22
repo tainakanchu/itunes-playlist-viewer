@@ -1,68 +1,66 @@
 ---
-title: インストール
-description: Crateforge のダウンロード・初回起動・アプリ内自動アップデート・ショートカット作成について。
+title: 安裝
+description: 關於 Crateforge 的下載、首次啟動、應用程式內自動更新與捷徑建立。
 ---
 
-> 🚧 翻訳準備中 / Translation in progress / 翻譯準備中
+Crateforge 支援 Windows / macOS / Linux。最新版可從 GitHub 的
+[Releases](https://github.com/tainakanchu/crateforge/releases/latest) 取得。
 
-Crateforge は Windows / macOS / Linux に対応しています。最新版は GitHub の
-[Releases](https://github.com/tainakanchu/crateforge/releases/latest) から入手できます。
+> 截圖稍後補上
 
-> 画像は後日追加
+## 下載與發佈形式
 
-## ダウンロードと配布形態
-
-| OS | 配布形態 | 備考 |
+| OS | 發佈形式 | 備註 |
 |---|---|---|
-| **Windows** | 単体 `.exe` / ポータブル `.zip` / `.msi` / セットアップ `.exe` | アプリ内の自動更新に対応 |
-| **macOS** | `.dmg`（Apple Silicon / Intel の各ネイティブ版） | **未署名**。初回は Gatekeeper の回避が必要 |
-| **Linux** | `.AppImage`（単一ファイル） / `.deb` | |
+| **Windows** | 單一 `.exe` / 可攜式 `.zip` / `.msi` / 安裝程式 `.exe` | 支援應用程式內自動更新 |
+| **macOS** | `.dmg`（Apple Silicon 原生） | **未簽署**。首次需繞過 Gatekeeper |
+| **Linux** | `.AppImage`（單一檔案） / `.deb` | |
 
 ### Windows
 
-- **インストーラ版（セットアップ `.exe` / `.msi`）** — 通常のインストール。
-  インストーラからの **デスクトップショートカット作成は既定でオフ** です（必要ならインストール時に有効化してください）。
-- **ポータブル版（`.zip`）** — 解凍して `crateforge.exe` を起動するだけ。インストール不要です。
+- **安裝版（安裝程式 `.exe` / `.msi`）** — 一般安裝方式。
+  從安裝程式 **建立桌面捷徑的選項預設為關閉**（如有需要，請於安裝時啟用）。
+- **可攜版（`.zip`）** — 解壓縮後直接執行 `crateforge.exe` 即可，無需安裝。
 
-いずれの版でも、アプリ内アップデートは **exe をその場で差し替えて再起動するだけ** なので高速で、
-SmartScreen の警告も出ません（v0.6.3 以降）。
+無論哪一種版本，應用程式內更新都 **只需就地替換 exe 並重新啟動**，所以速度很快，
+也不會跳出 SmartScreen 警告（v0.6.3 起）。
 
 ### macOS
 
-未署名のため、初回起動時に Gatekeeper の警告が出ます。次のいずれかで回避してください。
+由於未簽署，首次啟動時會出現 Gatekeeper 警告。請以下列任一方式繞過。
 
-- Finder で `.app` を **右クリック → 「開く」**
-- もしくはターミナルで `xattr -cr /Applications/Crateforge.app`
+- 在 Finder 中 **右鍵點選 `.app` →「開啟」**
+- 或在終端機執行 `xattr -cr /Applications/Crateforge.app`
 
 ### Linux
 
-- `.AppImage` は実行権限を付けて起動します（`chmod +x ./Crateforge*.AppImage && ./Crateforge*.AppImage`）。
-- `.deb` はパッケージマネージャでインストールします。
+- `.AppImage` 需賦予執行權限後啟動（`chmod +x ./Crateforge*.AppImage && ./Crateforge*.AppImage`）。
+- `.deb` 以套件管理員安裝。
 
-## 初回起動
+## 首次啟動
 
-1. アプリを起動すると空のライブラリが開きます。
-2. 既存の `iTunes Library.xml` を持っている場合はツールバーの **「📥 Import XML」** で取り込みます（[ライブラリ取り込み](../import/)）。
-3. XML を持っていない場合は **「🎵 Add Files」** で手元の音楽ファイルを直接取り込めます。
+1. 啟動應用程式後會開啟一個空的音樂庫。
+2. 若你已有既有的 `iTunes Library.xml`，請用工具列的 **「📥 Import XML」** 匯入（[音樂庫匯入](../import/)）。
+3. 若沒有 XML，也可用 **「🎵 Add Files」** 直接匯入手邊的音樂檔案。
 
-ライブラリの真実は SQLite (WAL) に常駐するため、初回取り込み後は次回以降すぐに開けます。
+由於音樂庫的真實資料常駐於 SQLite (WAL)，首次匯入後，往後再開啟都會很快。
 
-## アプリ内の自動アップデート
+## 應用程式內自動更新
 
-新しい GitHub Release が公開されると、ウィンドウ上部に **非ブロッキングなバナー** で通知されます。
-リリースノートは折りたたみ表示で確認できます（日本語化済み）。
+當有新的 GitHub Release 發佈時，會在視窗上方以 **非阻斷式橫幅** 通知你。
+發行說明（日英對照）可用摺疊方式檢視。
 
-更新の適用には次の選択肢があります。
+套用更新時有以下選擇。
 
-- **今すぐ更新** — ダウンロードしてその場で適用・再起動します。
-- **閉じるときに更新** — いまは使い続け、**ウィンドウを閉じるタイミングで自動的に適用** します（起動時に作業を中断されません）。
+- **立即更新** — 下載後就地套用並重新啟動。
+- **關閉時更新** — 現在繼續使用，並 **在關閉視窗時自動套用**（啟動時不會中斷你的工作）。
 
 :::caution
-アプリ内の自動更新は **Windows 専用** です。macOS / Linux は [Releases](https://github.com/tainakanchu/crateforge/releases/latest) から
-手動でダウンロードして入れ替えてください。
+應用程式內的自動更新 **僅限 Windows**。macOS / Linux 請從 [Releases](https://github.com/tainakanchu/crateforge/releases/latest)
+手動下載並替換。
 :::
 
-## ショートカット（デスクトップ）
+## 捷徑（桌面）
 
-Windows のインストーラはデスクトップショートカットを **既定で作成しません**。
-必要な場合はインストール時のオプションで有効化してください。
+Windows 的安裝程式 **預設不會建立桌面捷徑**。
+如有需要，請於安裝時的選項中啟用。

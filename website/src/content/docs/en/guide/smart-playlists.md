@@ -1,52 +1,44 @@
 ---
-title: スマートプレイリスト
-description: 条件で中身が自動的に決まるスマートプレイリストの作り方・件数プレビュー・フォルダ階層。
+title: Smart Playlists
+description: How to create Smart Playlists whose contents are determined automatically by rules, and folder hierarchy.
 ---
 
-> 🚧 翻訳準備中 / Translation in progress
+A **Smart Playlist** is a playlist whose contents are determined automatically by rules (conditions).
+Because it evaluates the entire library every time you open it, it is always kept up to date.
 
-**スマートプレイリスト** は、条件（ルール）で中身が自動的に決まるプレイリストです。
-開くたびにライブラリ全体を評価するため、常に最新の状態に保たれます。
+> Screenshots to be added
 
-> 画像は後日追加
+## Creating and editing
 
-## 作成と編集
+- Create a new one with the **🎛 button** in the sidebar.
+- For an existing Smart Playlist, edit its rules with **right-click → Edit rules**.
 
-- サイドバーの **🎛 ボタン** で新規作成します。
-- 既存のスマートプレイリストは **右クリック → ルール編集（[e]）** で条件を編集できます。
+## Rules
 
-## 条件（ルール）
+In the editor, you define rules with the following combination.
 
-エディタでは、次の組み合わせでルールを定義します。
+- **Field / operator / value** — one condition per row.
+- **Match all / any** — combine multiple conditions with AND / OR.
+- **Sort** — the order of the results.
+- **Limit (item cap)** — limit to the first N items.
 
-- **フィールド / 演算子 / 値** — 1 行で 1 つの条件。
-- **すべて / いずれかに一致** — 複数条件を AND / OR で結合。
-- **並び替え** — 結果の並び順。
-- **上限（件数制限）** — 先頭から N 件に制限。
-
-条件に使えるフィールドには、基本のメタデータに加えて **解析値** も含まれます。
+The fields available for rules include **analysis values** in addition to basic metadata.
 
 - **BPM** / **Key (Camelot)** / **Energy**
-- **再生回数** / **スキップ回数** / **レーティング** / **最終再生日時**
-- 名前 / アーティスト / アルバム / アルバムアーティスト / ジャンル / 年 など
+- **Play count** / **skip count** / **rating** / **last played**
+- name / artist / album / album artist / genre / year, etc.
 
-### 入力の補助
+### Input assistance
 
-- **日付条件** はネイティブの日付入力で指定できます。
-- **ジャンルタグ入力** は `Tab` でも確定でき、候補リストはスクロール可能です。
-- ジャンルなどの文字列条件には [CJK 字体ゆれ吸収](../customize/)（繁体字 / 簡体字 / 日本語漢字・かなの正規化）が効きます。
+- **Date conditions** can be specified with the native date input.
+- String conditions such as genre use a plain text input, and benefit from [CJK variant normalization](../customize/) (normalizing Traditional / Simplified Chinese and Japanese kanji / kana).
 
-## 件数プレビュー
+## Folder hierarchy
 
-エディタ上で、現在のルールに **何件マッチするか** をプレビューできます。
-条件を調整しながらヒット件数を確認し、狙った母集団になるよう詰めていけます。
-
-## フォルダ階層
-
-スマートプレイリストも通常のプレイリストと同様、サイドバーの **フォルダ階層** に配置できます。
-フォルダはクリックで折りたたみ / 展開でき、その状態は保存されて再起動後も保たれます。
+Like regular playlists, Smart Playlists can be placed in the **folder hierarchy** in the sidebar.
+Folders can be collapsed / expanded by clicking, and that state is saved and kept across restarts.
 
 :::note
-取り込んだ iTunes XML のスマートプレイリスト条件（`Smart Info`）は保持されません。
-Crateforge 側でルールを作り直してください。
+The Smart Playlist criteria (`Smart Info`) of imported iTunes XML are not preserved.
+Please recreate the rules on the Crateforge side.
 :::

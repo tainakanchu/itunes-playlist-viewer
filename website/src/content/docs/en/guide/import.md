@@ -1,75 +1,73 @@
 ---
-title: ライブラリ取り込み
-description: iTunes / Music の Library.xml 取り込み、フォルダ・ファイル取り込み、iTunes 互換 XML の自動エクスポート。
+title: Library import
+description: Importing iTunes / Music Library.xml, importing folders and files, and auto-exporting iTunes-compatible XML.
 ---
 
-> 🚧 翻訳準備中 / Translation in progress
+You can import a library into Crateforge from either the **iTunes / Music `Library.xml`** or your **own music files**.
 
-Crateforge へのライブラリ取り込みは、**iTunes / Music の `Library.xml`** か、**手元の音楽ファイル** のどちらからでも行えます。
+> Screenshots to be added
 
-> 画像は後日追加
+## Importing the iTunes / Music Library.xml
 
-## iTunes / Music の Library.xml を取り込む
+From **"📥 Import XML"** in the toolbar, select an `iTunes Library.xml` (Apple plist format).
 
-ツールバーの **「📥 Import XML」** から `iTunes Library.xml`（Apple plist 形式）を選びます。
-
-- ストリーミング SAX パーサで読み込むため、大きなライブラリでも高速です。
-- 取り込みはストリーミング解析で、トラック・プレイリスト・**フォルダ階層**（Persistent ID / Parent Persistent ID）を再現します。
-- 取り込みは **ライブラリ全体の置換** として行われます（既存 XML への差分マージは未対応）。
+- It is read with a streaming SAX parser, so even large libraries import fast.
+- The import uses streaming parsing and reproduces tracks, playlists, and the **folder hierarchy** (Persistent ID / Parent Persistent ID).
+- The import is performed as a **full replacement of the library** (merging diffs into an existing XML is not supported).
 
 :::note
-スマートプレイリストの判定条件（`Smart Info`）は読み込み・書き出しともに **保持しません**。
-取り込んだスマートプレイリストは、Crateforge の[スマートプレイリスト](../smart-playlists/)機能で作り直せます。
+Smart Playlist criteria (`Smart Info`) are **not preserved** on either import or export.
+You can recreate imported Smart Playlists with Crateforge's [Smart Playlist](../smart-playlists/) feature.
 :::
 
-### Library.xml の場所
+### Where the Library.xml is
 
-- **macOS** — 「ミュージック」アプリの環境設定で「XML を共有」を有効化すると書き出されます（古い iTunes では `~/Music/iTunes/iTunes Library.xml`）。
-- **Windows** — 通常は `%USERPROFILE%\Music\iTunes\iTunes Library.xml`。
+- **macOS** — Enabling "Share XML" in the Music app's preferences exports it (on older iTunes, `~/Music/iTunes/iTunes Library.xml`).
+- **Windows** — Usually `%USERPROFILE%\Music\iTunes\iTunes Library.xml`.
 
-## 音楽ファイルを取り込む
+## Importing music files
 
-ツールバーの **「🎵 Add Files」** で、手元の音楽ファイルを直接取り込めます（複数選択可）。
+With **"🎵 Add Files"** in the toolbar, you can import your own music files directly (multiple selection supported).
 
-- 対応形式: **FLAC / MP3 / M4A / WAV / Ogg / Opus / AIFF** など。
-- タグ（タイトル / アーティスト / アルバム / ジャンル / 年 / カバーアートなど）を `lofty` で読み取ります。
-- 取り込み時に **BPM タグ**（TBPM / tmpo / Vorbis BPM）も読み取ります。
+- Supported formats: **FLAC / MP3 / M4A / WAV / Ogg / Opus / AIFF** and more.
+- Tags (title / artist / album / genre / year, etc.) are read with `lofty`.
+- The **BPM tag** (TBPM / tmpo / Vorbis BPM) is also read on import.
 
-### 整理先フォルダ（自動整理）
+### Organize folder (auto-organize)
 
-設定で「整理先（ライブラリルート）」を指定すると、取り込み・編集時にファイルを
-`<整理先>/<アルバムアーティスト>/<アルバム>/` へ iTunes 準拠のリネームで配置します。
+If you set an "organize folder (library root)" in settings, files are placed under
+`<organize folder>/<album artist>/<album>/` with iTunes-style renaming on import and edit.
 
-設定の **「自動検出」** を使うと、既存の曲のパスから整理先を推定して設定できます。
+Using **"Auto-detect"** in settings infers the organize folder from the paths of existing tracks and sets it.
 
-## iTunes 互換 XML を書き出す
+## Exporting iTunes-compatible XML
 
-ツールバーの **「📤 Export XML」** で `iTunes Library.xml`（Apple plist 形式）を書き出せます。
-rekordbox / Serato / Traktor など、iTunes XML を読み取る DJ ソフトに渡せます。
+With **"📤 Export XML"** in the toolbar, you can export an `iTunes Library.xml` (Apple plist format).
+You can hand it to DJ software that reads iTunes XML, such as rekordbox / Serato / Traktor.
 
-書き出される XML には次が含まれます。
+The exported XML includes the following.
 
-- `Major/Minor Version` / `Date` / `Application Version` / `Library Persistent ID` ヘッダ
-- `Tracks` 辞書（Track ID キー、全フィールド）
-- `Playlists` 配列（Persistent ID / Parent Persistent ID によるフォルダ階層、`Playlist Items` で trackId 参照）
-- 文字列は `&` `<` `>` を数値文字参照でエスケープ、ファイルパスは `file://` URL に percent-encode
+- `Major/Minor Version` / `Date` / `Application Version` / `Library Persistent ID` headers
+- A `Tracks` dictionary (Track ID keys, all fields)
+- A `Playlists` array (folder hierarchy via Persistent ID / Parent Persistent ID, with `Playlist Items` referencing trackId)
+- Strings escape `&` `<` `>` as numeric character references, and file paths are percent-encoded into `file://` URLs
 
-### 自動エクスポート
+### Auto-export
 
-ツールバーの **🕐 トグル** を ON にすると、**変更があったときだけ・約 30 分間隔＋終了時** に
-Library XML を自動で書き出します。DJ ソフト側に最新のライブラリを常に渡しておきたいときに便利です。
+Turning on the **🕐 toggle** in the toolbar automatically exports the Library XML **only when there have been changes, roughly every 30 minutes plus on exit**.
+This is handy when you always want to keep your DJ software fed with the latest library.
 
-## CD から取り込む（リッピング）
+## Importing from a CD (ripping)
 
-ツールバーの **「💿 Rip CD」** から、物理 CD を取り込めます（MusicBrainz で曲情報、Cover Art Archive でジャケットを自動取得）。
+From **"💿 Rip CD"** in the toolbar, you can import a physical CD (track info is fetched automatically from MusicBrainz, and cover art from the Cover Art Archive).
 
-1. **Drive** を入力して「🔍 Detect Disc」（Linux: `/dev/cdrom` / `/dev/sr0`、macOS: `disk1`、Windows: `D:`）
-2. TOC が読まれ、自動的に MusicBrainz の候補アルバムを表示
-3. 必要に応じてリリースを選び直し、トラックを選択
-4. **Format**（FLAC / ALAC / MP3 / WAV）と **Output** フォルダを指定して「▶ Start Ripping」
-5. 完了後は自動的にライブラリに追加（オプション ON 時）
+1. Enter the **Drive** and click "🔍 Detect Disc" (defaults are Linux: `/dev/cdrom`, macOS: `disk1`, Windows: `D:`; on Linux you can also type `/dev/sr0` and the like manually)
+2. The TOC is read and candidate albums from MusicBrainz are displayed automatically
+3. Re-pick the release if needed, and select the tracks
+4. Specify the **Format** (FLAC / ALAC / MP3 / WAV) and the **Output** folder, then click "▶ Start Ripping"
+5. When done, it is added to the library automatically (when the option is on)
 
 :::caution
-WSL2 では物理 CD が直接見えないため、`usbipd-win` でドライブを WSL2 に attach する必要があります。
-Windows ビルドでは `discid` を外しているため TOC 自動取得は無効です（TOC 手動入力で MusicBrainz 検索は可能）。
+Under WSL2, a physical CD isn't visible directly, so you need to attach the drive to WSL2 with `usbipd-win`.
+The Windows build does not bundle `discid` (libdiscid), but "Detect Disc" still works because it reads the TOC directly via the OS IOCTL and computes the MusicBrainz Disc ID in-house. Entering the TOC manually is a fallback for environments where neither libdiscid nor IOCTL is available.
 :::

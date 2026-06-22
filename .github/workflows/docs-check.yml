@@ -1,0 +1,45 @@
+name: Docs drift check
+
+# 実装 (src-tauri / src / clients) かドキュメント (website) が変わる PR・push で、
+# ドキュメントが実装と食い違っていないか (= 嘘を書いていないか) を機械チェックする。
+# 振る舞いレベルの記述は人間レビュー (website/MAINTAINING.md のチェックリスト) で担保し、
+# ここでは機械抽出できる事実 (API エンドポイント / 既定ポート / 対応フォーマット /
+# ロケール整合性) のドリフトを弾く。
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "src-tauri/src/**"
+      - "src/types/**"
+      - "website/src/content/docs/**"
+      - "scripts/check-docs.mjs"
+      - ".github/workflows/docs-check.yml"
+  pull_request:
+    paths:
+      - "src-tauri/src/**"
+      - "src/types/**"
+      - "website/src/content/docs/**"
+      - "scripts/check-docs.mjs"
+      - ".github/workflows/docs-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # 依存なしの素の Node スクリプト。pnpm install 不要。
+      - name: Check docs vs. implementation
+        run: node scripts/check-docs.mjs

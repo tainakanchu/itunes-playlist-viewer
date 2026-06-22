@@ -1,52 +1,50 @@
 ---
-title: フォーマット変換
-description: ffmpeg による mp3 / aac / opus / flac / alac / wav への変換、ビットレート・出力先・ライブラリ追加。
+title: Format conversion
+description: Converting to mp3 / aac / opus / flac / alac / wav with ffmpeg, bitrate, output destination, and adding to the library.
 ---
 
-> 🚧 翻訳準備中 / Translation in progress
+You can convert tracks to a different audio format (using ffmpeg). Tags and embedded cover art carry over, and progress is shown.
 
-曲を別の音声フォーマットへ変換できます（ffmpeg を使用）。タグと埋め込みカバーアートを引き継ぎ、進捗を表示します。
+> Screenshots to be added
 
-> 画像は後日追加
+## Converting
 
-## 変換する
+1. **Right-click** a track (multiple selection supported) and choose **"Convert to…"**.
+2. Choose the **format, bitrate, and output destination**.
+3. If needed, enable "Add to library after conversion."
+4. Start the conversion and progress is displayed.
 
-1. 曲（複数選択可）を **右クリック → 「Convert to…」**。
-2. **形式・ビットレート・出力先** を選びます。
-3. 必要なら「変換後にライブラリへ追加」を有効にします。
-4. 変換を開始すると進捗が表示されます。
+The dialog can be closed with `Esc`, and it supports initial focus and confirming with `Enter`.
 
-ダイアログは `Esc` で閉じられ、初期フォーカスと `Enter` 確定にも対応します。
+## Supported formats
 
-## 対応フォーマット
-
-| 形式 | 種別 | 備考 |
+| Format | Type | Notes |
 |---|---|---|
-| **MP3** | 非可逆 | ビットレート指定 |
-| **AAC** | 非可逆 | ビットレート指定 |
-| **Opus** | 非可逆 | ビットレート指定 |
-| **FLAC** | 可逆 | |
-| **ALAC** | 可逆 | |
-| **WAV** | 無圧縮 | |
+| **MP3** | Lossy | Bitrate selectable |
+| **AAC** | Lossy | Bitrate selectable |
+| **Opus** | Lossy | Bitrate selectable |
+| **FLAC** | Lossless | |
+| **ALAC** | Lossless | |
+| **WAV** | Uncompressed | |
 
-非可逆フォーマット（MP3 / AAC / Opus）では **ビットレート** を選べます。
+For lossy formats (MP3 / AAC / Opus), you can choose the **bitrate**.
 
-## 出力先とライブラリ追加
+## Output destination and adding to the library
 
-- **出力先フォルダ** を指定できます。
-- 「ライブラリへ追加」を有効にすると、変換後のファイルをそのままライブラリに取り込みます
-  （[整理先フォルダ](../import/#整理先フォルダ自動整理)を設定していれば、その規則で配置されます）。
+- You can specify an **output folder**.
+- If you enable "Add to library," the converted files are imported into the library as-is
+  (the converted files stay in the output folder you specified, and the placement rules of the [organize folder](../import/) are not applied).
 
-変換時には、ライブラリのタグと埋め込みカバーアートが新しいファイルへ引き継がれます。
+During conversion, the library's tags and embedded cover art carry over to the new file.
 
-## ffmpeg について
+## About ffmpeg
 
-変換は **ffmpeg を外部プロセスとして利用** します。
+Conversion **uses ffmpeg as an external process**.
 
-- **Windows** — ffmpeg は同梱せず、**初回利用時に自動取得＋キャッシュ** します。
-  解決順は PATH → `%LOCALAPPDATA%` のキャッシュ → 上流（BtbN）からダウンロード。アプリを更新しても ffmpeg は保持されます。
-- **macOS / Linux** — **PATH 上の ffmpeg** を利用します（別途インストールしておいてください）。
+- **Windows** — ffmpeg is not bundled; it is **fetched and cached automatically on first use**.
+  The resolution order is: cache in `%LOCALAPPDATA%` → (legacy bundled resource) → PATH → if none, download from upstream (BtbN). ffmpeg is retained even when you update the app.
+- **macOS / Linux** — uses the **ffmpeg on your PATH** (please install it separately).
 
 :::note
-ffmpeg は GPL ライセンスのため同梱を避け、CLI として外部プロセスで利用しています。
+Because ffmpeg is GPL-licensed, we avoid bundling it and use it as a CLI in an external process.
 :::

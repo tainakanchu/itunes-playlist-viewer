@@ -1,75 +1,73 @@
 ---
-title: ライブラリ取り込み
-description: iTunes / Music の Library.xml 取り込み、フォルダ・ファイル取り込み、iTunes 互換 XML の自動エクスポート。
+title: 音樂庫匯入
+description: iTunes / Music 的 Library.xml 匯入、資料夾與檔案匯入、iTunes 相容 XML 的自動匯出。
 ---
 
-> 🚧 翻訳準備中 / Translation in progress / 翻譯準備中
+要將音樂庫匯入 Crateforge，可從 **iTunes / Music 的 `Library.xml`** 或 **手邊的音樂檔案** 任一方式進行。
 
-Crateforge へのライブラリ取り込みは、**iTunes / Music の `Library.xml`** か、**手元の音楽ファイル** のどちらからでも行えます。
+> 截圖稍後補上
 
-> 画像は後日追加
+## 匯入 iTunes / Music 的 Library.xml
 
-## iTunes / Music の Library.xml を取り込む
+從工具列的 **「📥 Import XML」** 選取 `iTunes Library.xml`（Apple plist 格式）。
 
-ツールバーの **「📥 Import XML」** から `iTunes Library.xml`（Apple plist 形式）を選びます。
-
-- ストリーミング SAX パーサで読み込むため、大きなライブラリでも高速です。
-- 取り込みはストリーミング解析で、トラック・プレイリスト・**フォルダ階層**（Persistent ID / Parent Persistent ID）を再現します。
-- 取り込みは **ライブラリ全体の置換** として行われます（既存 XML への差分マージは未対応）。
+- 採用串流 SAX 剖析器讀取，即使是大型音樂庫也很快。
+- 匯入透過串流解析進行，重現曲目、播放清單、**資料夾階層**（Persistent ID / Parent Persistent ID）。
+- 匯入會以 **整個音樂庫的取代** 方式進行（尚不支援對既有 XML 的差異合併）。
 
 :::note
-スマートプレイリストの判定条件（`Smart Info`）は読み込み・書き出しともに **保持しません**。
-取り込んだスマートプレイリストは、Crateforge の[スマートプレイリスト](../smart-playlists/)機能で作り直せます。
+智慧型播放清單的判定條件（`Smart Info`）在讀取與匯出時 **皆不會保留**。
+匯入的智慧型播放清單可用 Crateforge 的[智慧型播放清單](../smart-playlists/)功能重新建立。
 :::
 
-### Library.xml の場所
+### Library.xml 的位置
 
-- **macOS** — 「ミュージック」アプリの環境設定で「XML を共有」を有効化すると書き出されます（古い iTunes では `~/Music/iTunes/iTunes Library.xml`）。
-- **Windows** — 通常は `%USERPROFILE%\Music\iTunes\iTunes Library.xml`。
+- **macOS** — 在「音樂」應用程式的偏好設定中啟用「共享 XML」即可匯出（舊版 iTunes 為 `~/Music/iTunes/iTunes Library.xml`）。
+- **Windows** — 通常位於 `%USERPROFILE%\Music\iTunes\iTunes Library.xml`。
 
-## 音楽ファイルを取り込む
+## 匯入音樂檔案
 
-ツールバーの **「🎵 Add Files」** で、手元の音楽ファイルを直接取り込めます（複数選択可）。
+從工具列的 **「🎵 Add Files」**，可直接匯入手邊的音樂檔案（可多選）。
 
-- 対応形式: **FLAC / MP3 / M4A / WAV / Ogg / Opus / AIFF** など。
-- タグ（タイトル / アーティスト / アルバム / ジャンル / 年 / カバーアートなど）を `lofty` で読み取ります。
-- 取り込み時に **BPM タグ**（TBPM / tmpo / Vorbis BPM）も読み取ります。
+- 支援格式：**FLAC / MP3 / M4A / WAV / Ogg / Opus / AIFF** 等。
+- 以 `lofty` 讀取標籤（標題 / 演出者 / 專輯 / 類型 / 年份 等）。
+- 匯入時也會讀取 **BPM 標籤**（TBPM / tmpo / Vorbis BPM）。
 
-### 整理先フォルダ（自動整理）
+### 整理目標資料夾（音樂庫根目錄）（自動整理）
 
-設定で「整理先（ライブラリルート）」を指定すると、取り込み・編集時にファイルを
-`<整理先>/<アルバムアーティスト>/<アルバム>/` へ iTunes 準拠のリネームで配置します。
+在設定中指定「整理目標（音樂庫根目錄）」後，匯入與編輯時會將檔案以 iTunes 慣例的命名方式
+放置到 `<整理目標>/<專輯演出者>/<專輯>/`。
 
-設定の **「自動検出」** を使うと、既存の曲のパスから整理先を推定して設定できます。
+使用設定中的 **「自動偵測」**，可從既有曲目的路徑推測並設定整理目標。
 
-## iTunes 互換 XML を書き出す
+## 匯出 iTunes 相容 XML
 
-ツールバーの **「📤 Export XML」** で `iTunes Library.xml`（Apple plist 形式）を書き出せます。
-rekordbox / Serato / Traktor など、iTunes XML を読み取る DJ ソフトに渡せます。
+從工具列的 **「📤 Export XML」**，可匯出 `iTunes Library.xml`（Apple plist 格式）。
+可交給 rekordbox / Serato / Traktor 等能讀取 iTunes XML 的 DJ 軟體。
 
-書き出される XML には次が含まれます。
+匯出的 XML 包含以下內容。
 
-- `Major/Minor Version` / `Date` / `Application Version` / `Library Persistent ID` ヘッダ
-- `Tracks` 辞書（Track ID キー、全フィールド）
-- `Playlists` 配列（Persistent ID / Parent Persistent ID によるフォルダ階層、`Playlist Items` で trackId 参照）
-- 文字列は `&` `<` `>` を数値文字参照でエスケープ、ファイルパスは `file://` URL に percent-encode
+- `Major/Minor Version` / `Date` / `Application Version` / `Library Persistent ID` 標頭
+- `Tracks` 字典（Track ID 鍵，所有欄位）
+- `Playlists` 陣列（依 Persistent ID / Parent Persistent ID 的資料夾階層，以 `Playlist Items` 參照 trackId）
+- 字串會將 `&` `<` `>` 以數值字元參照跳脫，檔案路徑則 percent-encode 為 `file://` URL
 
-### 自動エクスポート
+### 自動匯出
 
-ツールバーの **🕐 トグル** を ON にすると、**変更があったときだけ・約 30 分間隔＋終了時** に
-Library XML を自動で書き出します。DJ ソフト側に最新のライブラリを常に渡しておきたいときに便利です。
+將工具列的 **🕐 切換鈕** 開啟後，會在 **僅在有變更時、約每 30 分鐘一次＋結束時** 自動匯出
+Library XML。想要隨時把最新的音樂庫交給 DJ 軟體時很方便。
 
-## CD から取り込む（リッピング）
+## 從 CD 匯入（擷取）
 
-ツールバーの **「💿 Rip CD」** から、物理 CD を取り込めます（MusicBrainz で曲情報、Cover Art Archive でジャケットを自動取得）。
+從工具列的 **「💿 Rip CD」**，可匯入實體 CD（以 MusicBrainz 取得曲目資訊、以 Cover Art Archive 自動取得封面）。
 
-1. **Drive** を入力して「🔍 Detect Disc」（Linux: `/dev/cdrom` / `/dev/sr0`、macOS: `disk1`、Windows: `D:`）
-2. TOC が読まれ、自動的に MusicBrainz の候補アルバムを表示
-3. 必要に応じてリリースを選び直し、トラックを選択
-4. **Format**（FLAC / ALAC / MP3 / WAV）と **Output** フォルダを指定して「▶ Start Ripping」
-5. 完了後は自動的にライブラリに追加（オプション ON 時）
+1. 輸入 **Drive** 並按「🔍 Detect Disc」（預設為 Linux：`/dev/cdrom`、macOS：`disk1`、Windows：`D:`。Linux 也可直接輸入 `/dev/sr0` 等）
+2. 讀取 TOC 後，自動顯示 MusicBrainz 的候選專輯
+3. 視需要重新選擇發行版本，並選取曲目
+4. 指定 **Format**（FLAC / ALAC / MP3 / WAV）與 **Output** 資料夾後按「▶ Start Ripping」
+5. 完成後自動加入音樂庫（選項開啟時）
 
 :::caution
-WSL2 では物理 CD が直接見えないため、`usbipd-win` でドライブを WSL2 に attach する必要があります。
-Windows ビルドでは `discid` を外しているため TOC 自動取得は無効です（TOC 手動入力で MusicBrainz 検索は可能）。
+WSL2 無法直接看到實體 CD，因此需用 `usbipd-win` 將光碟機 attach 到 WSL2。
+Windows 組建未隨附 `discid`（libdiscid），但會使用 OS 的 IOCTL 直接讀取 TOC、並在應用程式端算出 MusicBrainz Disc ID，因此「Detect Disc」在 Windows 上也能運作（手動輸入 TOC 為備援方式）。
 :::

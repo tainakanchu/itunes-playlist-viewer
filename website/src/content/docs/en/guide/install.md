@@ -1,68 +1,66 @@
 ---
-title: インストール
-description: Crateforge のダウンロード・初回起動・アプリ内自動アップデート・ショートカット作成について。
+title: Installation
+description: Downloading Crateforge, first launch, in-app auto-update, and creating shortcuts.
 ---
 
-> 🚧 翻訳準備中 / Translation in progress
+Crateforge supports Windows / macOS / Linux. The latest version is available from
+[Releases](https://github.com/tainakanchu/crateforge/releases/latest) on GitHub.
 
-Crateforge は Windows / macOS / Linux に対応しています。最新版は GitHub の
-[Releases](https://github.com/tainakanchu/crateforge/releases/latest) から入手できます。
+> Screenshots to be added
 
-> 画像は後日追加
+## Download and distribution formats
 
-## ダウンロードと配布形態
-
-| OS | 配布形態 | 備考 |
+| OS | Distribution format | Notes |
 |---|---|---|
-| **Windows** | 単体 `.exe` / ポータブル `.zip` / `.msi` / セットアップ `.exe` | アプリ内の自動更新に対応 |
-| **macOS** | `.dmg`（Apple Silicon / Intel の各ネイティブ版） | **未署名**。初回は Gatekeeper の回避が必要 |
-| **Linux** | `.AppImage`（単一ファイル） / `.deb` | |
+| **Windows** | standalone `.exe` / portable `.zip` / `.msi` / setup `.exe` | Supports in-app auto-update |
+| **macOS** | `.dmg` (Apple Silicon native) | **Unsigned**. The first launch requires bypassing Gatekeeper |
+| **Linux** | `.AppImage` (single file) / `.deb` | |
 
 ### Windows
 
-- **インストーラ版（セットアップ `.exe` / `.msi`）** — 通常のインストール。
-  インストーラからの **デスクトップショートカット作成は既定でオフ** です（必要ならインストール時に有効化してください）。
-- **ポータブル版（`.zip`）** — 解凍して `crateforge.exe` を起動するだけ。インストール不要です。
+- **Installer (setup `.exe` / `.msi`)** — a standard installation.
+  Creating a **desktop shortcut from the installer is off by default** (enable it during installation if you want one).
+- **Portable (`.zip`)** — just unzip and launch `crateforge.exe`. No installation required.
 
-いずれの版でも、アプリ内アップデートは **exe をその場で差し替えて再起動するだけ** なので高速で、
-SmartScreen の警告も出ません（v0.6.3 以降）。
+With either version, in-app updates simply **swap the exe in place and restart**, so they are fast and
+do not trigger SmartScreen warnings (v0.6.3 and later).
 
 ### macOS
 
-未署名のため、初回起動時に Gatekeeper の警告が出ます。次のいずれかで回避してください。
+Because it is unsigned, Gatekeeper shows a warning on first launch. Bypass it in one of the following ways.
 
-- Finder で `.app` を **右クリック → 「開く」**
-- もしくはターミナルで `xattr -cr /Applications/Crateforge.app`
+- In Finder, **right-click** the `.app` and choose **"Open"**
+- Or, in a terminal, run `xattr -cr /Applications/Crateforge.app`
 
 ### Linux
 
-- `.AppImage` は実行権限を付けて起動します（`chmod +x ./Crateforge*.AppImage && ./Crateforge*.AppImage`）。
-- `.deb` はパッケージマネージャでインストールします。
+- For `.AppImage`, make it executable and launch it (`chmod +x ./Crateforge*.AppImage && ./Crateforge*.AppImage`).
+- Install `.deb` with your package manager.
 
-## 初回起動
+## First launch
 
-1. アプリを起動すると空のライブラリが開きます。
-2. 既存の `iTunes Library.xml` を持っている場合はツールバーの **「📥 Import XML」** で取り込みます（[ライブラリ取り込み](../import/)）。
-3. XML を持っていない場合は **「🎵 Add Files」** で手元の音楽ファイルを直接取り込めます。
+1. Launching the app opens an empty library.
+2. If you already have an `iTunes Library.xml`, import it with **"📥 Import XML"** in the toolbar ([Library import](../import/)).
+3. If you don't have an XML, you can import your own music files directly with **"🎵 Add Files"**.
 
-ライブラリの真実は SQLite (WAL) に常駐するため、初回取り込み後は次回以降すぐに開けます。
+The source of truth for the library lives in SQLite (WAL), so after the first import it opens instantly every time after that.
 
-## アプリ内の自動アップデート
+## In-app auto-update
 
-新しい GitHub Release が公開されると、ウィンドウ上部に **非ブロッキングなバナー** で通知されます。
-リリースノートは折りたたみ表示で確認できます（日本語化済み）。
+When a new GitHub Release is published, you are notified by a **non-blocking banner** at the top of the window.
+The release notes (bilingual, Japanese + English) can be reviewed in a collapsible view.
 
-更新の適用には次の選択肢があります。
+You have the following options for applying an update.
 
-- **今すぐ更新** — ダウンロードしてその場で適用・再起動します。
-- **閉じるときに更新** — いまは使い続け、**ウィンドウを閉じるタイミングで自動的に適用** します（起動時に作業を中断されません）。
+- **Update now** — download and apply it on the spot, then restart.
+- **Update when closing** — keep using the current version, and **apply automatically when you close the window** (so your work isn't interrupted at startup).
 
 :::caution
-アプリ内の自動更新は **Windows 専用** です。macOS / Linux は [Releases](https://github.com/tainakanchu/crateforge/releases/latest) から
-手動でダウンロードして入れ替えてください。
+In-app auto-update is **Windows-only**. For macOS / Linux, download the latest version manually from
+[Releases](https://github.com/tainakanchu/crateforge/releases/latest) and replace it.
 :::
 
-## ショートカット（デスクトップ）
+## Shortcuts (desktop)
 
-Windows のインストーラはデスクトップショートカットを **既定で作成しません**。
-必要な場合はインストール時のオプションで有効化してください。
+The Windows installer **does not create a desktop shortcut by default**.
+If you want one, enable the option during installation.

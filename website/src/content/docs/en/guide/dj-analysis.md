@@ -1,49 +1,46 @@
 ---
-title: DJ 解析
-description: 純 Rust の DSP による BPM / Key (Camelot) / Energy / ラウドネス / 類似度の解析と使い方。
+title: DJ analysis
+description: Analyzing BPM / Key (Camelot) / Energy / loudness / similarity with a pure-Rust DSP, and how to use it.
 ---
 
-> 🚧 翻訳準備中 / Translation in progress
+Crateforge performs DJ-oriented audio analysis with a **pure-Rust DSP**.
+Without depending on external tools, it estimates **BPM / Key (Camelot) / Energy / loudness** and a similarity vector.
 
-Crateforge は **純 Rust の DSP** で DJ 向けの音声解析を行います。
-外部ツールに依存せず、**BPM / Key (Camelot) / Energy / ラウドネス** と類似度ベクトルを推定します。
+> Screenshots to be added
 
-> 画像は後日追加
+## What gets analyzed
 
-## 何が解析されるか
-
-| 指標 | 内容 |
+| Metric | Description |
 |---|---|
-| **BPM** | テンポを自動検出。つなぎやすい曲を把握できます。 |
-| **Key (Camelot)** | ハーモニックミックス向けに、調を Camelot 表記（例 `8A`）で表示します。 |
-| **Energy** | 曲の勢いを数値化。セットの流れを設計できます。 |
-| **ラウドネス** | 音量レベル。実波形の描画や正規化に使われます。 |
-| **類似度ベクトル** | 似た雰囲気の曲を手繰り寄せるための内部表現。 |
+| **BPM** | Detects tempo automatically. Lets you find tracks that are easy to mix. |
+| **Key (Camelot)** | For harmonic mixing, shows the key in Camelot notation (e.g. `8A`). |
+| **Energy** | Quantifies a track's drive. Lets you design the flow of a set. |
+| **Loudness** | The volume level. Used for rendering the real waveform and for normalization. |
+| **Similarity vector** | An internal representation for pulling in tracks with a similar vibe. |
 
-解析結果のうち **Key / Energy** はトラックテーブルの列として表示でき、Now Playing にも表示されます。
+Of the analysis results, **Key / Energy** can be shown as columns in the track table and are also shown in Now Playing.
 
-## いつ解析されるか
+## When analysis runs
 
-解析は「よく使う曲」だけをバックグラウンドで行います。次のいずれかがきっかけになります。
+Analysis runs in the background only for "the tracks you use often." It is triggered by either of the following.
 
-- 曲を **再生** したとき
-- **★4 以上** のレーティングを付けたとき
-- 右クリック → **「Analyze」** を実行したとき
+- When you **play** a track
+- When you run **"Analyze"** via right-click
 
-進捗はツールバーに表示されます。ライブラリ全曲を一度に解析するのではなく、
-実際に使う曲に絞って解析することで、無駄なく動きます。
+Progress is shown in the toolbar. Rather than analyzing your entire library at once,
+it focuses on the tracks you actually use, so it works without waste.
 
-## 類似度選曲（Similar）
+## Similarity-based curation (Similar)
 
-右レールの **Similar** タブで、解析値をもとにした「次の一手」を提案します。
+The **Similar** tab in the right rail suggests "next moves" based on analysis values.
 
-- 曲を右クリック → **「Find similar」** で、**Camelot キー互換 + テンポ近接** の候補を表示します。
-- **Harmonic トグル** でハーモニックに合うものへ絞り込めます。
-- 結果は **Crate やキューに追加** できます（すべて追加済みなら "All added" で無効化）。
+- Right-click a track and choose **"Find similar"** to show candidates that are **Camelot-key compatible + close in tempo**.
+- The **Harmonic toggle** narrows results to those that fit harmonically.
+- You can **add results to the Crate** (or double-click to play) (when everything has been added, it is disabled with "All added").
 
-## 検索フィルタ構文
+## Search filter syntax
 
-解析値は検索でも絞り込めます（テキスト検索と AND 結合）。
+You can also filter by analysis values in search (AND-combined with text search).
 
 ```text
 bpm:120-128
@@ -51,12 +48,12 @@ key:8A
 energy:60-100
 ```
 
-## スマートプレイリスト・AI 選曲との連携
+## Integration with Smart Playlists and AI curation
 
-- [スマートプレイリスト](../smart-playlists/) の条件に BPM / Key / Energy を使えます。
-- [内蔵 API サーバー](../api-server/) は解析結果や類似曲も返すため、dj-curator などの AI 選曲が解析値をボーナスとして活用できます。
+- You can use BPM / Key / Energy in [Smart Playlist](../smart-playlists/) rules.
+- The [built-in API server](../api-server/) also returns analysis results and similar tracks, so AI curation such as dj-curator can leverage analysis values as a bonus.
 
 :::note
-選曲は **メタデータ主体**（レーティング / ジャンル / 年代）で行うのが基本方針で、
-BPM / Key / Energy は「あれば使うボーナス」として扱われます。
+The basic policy is to curate **primarily by metadata** (rating / genre / era),
+and to treat BPM / Key / Energy as a "use-it-if-you-have-it bonus."
 :::

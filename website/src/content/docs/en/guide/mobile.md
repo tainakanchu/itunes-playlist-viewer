@@ -1,60 +1,58 @@
 ---
-title: モバイル
-description: モバイルクライアントの接続（QR / 手動 / ペアリング）、ブラウズ、端末再生・背景再生、リモコン、オフライン DL / 閲覧 / 再生。
+title: Mobile
+description: Connecting the mobile client (QR / manual), browsing, on-device and background playback, remote, and offline download / browsing / playback.
 ---
 
-> 🚧 翻訳準備中 / Translation in progress
+The Crateforge mobile client lets you browse and play your desktop library through the [built-in API server](../api-server/).
+Even when not connected to the server, you can browse and play downloaded content.
 
-Crateforge のモバイルクライアントは、[内蔵 API サーバー](../api-server/) を通じて
-デスクトップのライブラリをブラウズ・再生できます。サーバー未接続でも、ダウンロード済みのコンテンツを閲覧・再生できます。
+> Screenshots to be added
 
-> 画像は後日追加
+## Connecting
 
-## 接続する
+On the desktop side, enable **"Expose on LAN"** for the built-in API server.
+From mobile, connect in one of the following ways.
 
-デスクトップ側で内蔵 API サーバーの **「LAN 公開」** を有効にしておきます。
-モバイルからは次のいずれかで接続します。
+- **QR code** — scan the QR of the connection URL shown in settings to connect.
+- **Manual entry** — type in the connection URL and token.
 
-- **QR コード** — 設定に表示される接続 URL の QR を読み取って接続。
-- **手動入力** — 接続 URL とトークンを手入力。
-- **ペアリング** — カメラの無い端末（Android TV など）向け。デスクトップの **「端末を承認」** で許可します
-  （`POST /api/pair/start` → `GET /api/pair/poll`）。
+(Pairing is a feature for the Android TV client; the mobile app connects via QR / manual entry.)
 
-## ブラウズ
+## Browsing
 
-接続中は、デスクトップのライブラリを次の単位でブラウズできます。
+While connected, you can browse the desktop library in the following units.
 
-- **曲 / プレイリスト / アルバム / アーティスト**
-- 検索、ジャンル / 年代での絞り込み
-- **アートワーク** 表示
-- アルバムを開いたときの曲順は **ディスク番号 → トラック番号** 順
-- アーティストを開くとアルバムが並び、アルバムアーティスト順でソート
-- アーティストの束ね方は設定（**アルバムアーティスト / アーティスト**）で切り替え
+- **Tracks / playlists / albums / artists**
+- Search and filtering by genre
+- **Artwork** display
+- When opening an album, the track order is **disc number → track number**
+- Opening an artist lists their albums, sorted by album artist
+- How artists are grouped can be switched in settings (**album artist / artist**)
 
-## 端末再生・背景再生
+## On-device and background playback
 
-- 「この端末で再生」を選ぶと、モバイル端末上で再生します（**背景再生** に対応）。
-- ストリーミングはクライアント向けパラメータに対応します。
-  - `?native=1` — 端末が再生できる形式は無変換で配信（ALAC / FLAC 等はロスレスのまま）
-  - `?original=1` — 常に原本
-  - `?fmt=aac&br=N` — AAC-LC へ再エンコード（オフライン保存の容量節約用）
+- Choosing "Play on this device" plays on the mobile device (**background playback** supported).
+- Streaming supports client-oriented parameters.
+  - `?native=1` — formats the device can play are served without conversion (ALAC / FLAC, etc. stay lossless)
+  - `?original=1` — always the original
+  - `?fmt=aac&br=N` — re-encode to AAC-LC (to save space for offline storage)
 
-## リモコン
+## Remote
 
-「PC で再生（リモコン）」に切り替えると、デスクトップ側の再生をモバイルから操作できます。
-再生 / 一時停止・前後・シーク・音量・シャッフル / リピートを操作でき、再生中の状態が同期します。
-再生中のアーティスト（とアルバム）をタップすると、そのページへ遷移できます。
+Switching to "Play on PC (remote)" lets you control desktop playback from mobile.
+You can do play / pause, previous/next, seek, volume, and shuffle / repeat, and the playing state stays in sync.
+Tapping the playing artist (and album) navigates to that page.
 
-## オフライン DL / 閲覧 / 再生
+## Offline download / browsing / playback
 
-曲をダウンロードしておくと、**サーバー未接続でも** 閲覧・再生できます。
+Once you download tracks, you can browse and play them **even when not connected to the server**.
 
-- ダウンロード済みの **曲 / プレイリスト / アルバム** をオフラインで閲覧・再生。
-- ダウンロード時に **アルバムアートを webp でローカル保存**（アルバム単位で重複排除）するため、未接続でもジャケットが表示されます。
-- オフラインのコレクションでも、アルバム行にアートワークとアルバムアーティスト（複数混在は "Various Artists"）を表示します。
-- アーティストページもダウンロード済みからアルバム表示で再現します。
+- Browse and play downloaded **tracks / playlists / albums** offline.
+- On download, **album art is saved locally as webp** (deduplicated per album), so jackets show even when not connected.
+- In the offline collection too, album rows show the artwork and album artist (mixed artists show as "Various Artists").
+- The artist page is also reconstructed from downloads as an album view.
 
 :::note
-モバイルクライアントは EAS の internal distribution で別途配布されます。
-デスクトップ側 API の拡張は OTA でモバイルにも反映されます。
+The mobile client is distributed separately via EAS internal distribution.
+Updates on the mobile app side are delivered OTA (EAS Update).
 :::

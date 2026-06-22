@@ -1,79 +1,77 @@
 ---
-title: 表示のカスタマイズ
-description: 列の追加 / 並べ替え / 幅、行高・カバー・右ペインの調整と、キーボードショートカット一覧。
+title: Customizing the display
+description: Adding / reordering / resizing columns, adjusting row height, covers, and the right rail, plus a keyboard shortcut list.
 ---
 
-> 🚧 翻訳準備中 / Translation in progress
+You can fine-tune the track table and the right rail to match how you work. Settings are persisted.
 
-トラックテーブルや右ペインは、自分の使い方に合わせて細かく調整できます。設定は永続化されます。
+> Screenshots to be added
 
-> 画像は後日追加
+## Customizing columns
 
-## 列のカスタマイズ
+- **Resizing columns** — drag the right edge of a header to change the column width (you can widen Genre / tag columns enough to see everything).
+- **Reordering columns** — reorder by dragging the header directly, or with the pointer in the column picker (customize menu).
+- **Toggling visible columns** — show / hide columns in the column picker.
+- **Track number columns** — you can show two kinds: "Track #" (the track number within the album) and "No." (the sequential number in the current display order).
 
-- **列幅のリサイズ** — ヘッダ右端をドラッグして列幅を変更します（Genre / タグ列も全部見える幅に広げられます）。
-- **列の並べ替え** — ヘッダを直接ドラッグ、またはカラムピッカー（カスタマイズメニュー）のポインタ操作で並べ替えます。
-- **表示する列のトグル** — カラムピッカーで列の表示 / 非表示を切り替えます。
-- **トラック番号列** — アルバム内のトラック番号「Track #」と、現在の表示順の連番「No.」の 2 種類を表示できます。
+## Row height, covers, and the right rail
 
-## 行高・カバー・右ペイン
+- **Row height** — adjust within 32–64px with a slider.
+- **Artwork (cover) size** — choose from none / small (20px) / medium (28px).
+- **List / Covers view** — switch with the segment in the toolbar. Covers groups the same album into a single card, and clicking it expands the in-album track list in place.
+- **Show / hide the right rail** — hide it with a toggle.
 
-- **行高** — スライダーで 32〜64px の範囲で調整します。
-- **アートワーク（カバー）サイズ** — なし / 豆 / 小 から選べます。
-- **List / Covers ビュー** — ツールバーのセグメントで切り替え。Covers は同じアルバムを 1 枚のカードにまとめ、クリックで中の曲一覧をその場で展開します。
-- **右ペイン（右レール）の表示 / 非表示** — トグルで隠せます。
+Truncated cells (track name / album / album artist) show the full text as a tooltip on hover.
 
-省略表示されたセル（曲名 / アルバム / アルバムアーティスト）は、ホバーで全文をツールチップ表示します。
+## CJK variant-normalizing search
 
-## CJK 字体ゆれ吸収検索
+In the search box, the built-in API, and Smart Playlists, **Traditional / Simplified Chinese, Japanese kanji and kana (hiragana ↔ katakana), full-width / half-width, and upper / lowercase** are normalized,
+so whichever variant you type matches across the board. The strength can be set to **off / light / standard** in settings.
 
-検索ボックス・内蔵 API・スマートプレイリストでは、**繁体字 / 簡体字 / 日本語漢字・かな（ひら↔カタ）・全角半角・英大小** を正規化し、
-どの字体で入力しても横断的にヒットします。強度は設定で **オフ / 軽量 / 標準** から選べます。
+Focus the search with `/`, and the query is split on spaces with each token AND-combined
+(matching any of name / artist / album / album artist / genre / comments).
+You can also filter by [analysis values](../dj-analysis/) like `bpm:120-128` / `key:8A` / `energy:60-100`.
 
-検索は `/` でフォーカスし、クエリをスペースで分割して各トークンを AND 結合します
-（名前 / アーティスト / アルバム / アルバムアーティスト / ジャンル / コメントのいずれかに一致）。
-`bpm:120-128` / `key:8A` / `energy:60-100` のように[解析値](../dj-analysis/)でも絞り込めます。
+## Keyboard shortcuts
 
-## キーボードショートカット
+Press `?` to show the shortcut list overlay. The main ones are as follows.
 
-`?` キーでショートカット一覧オーバーレイを表示できます。主なものは次のとおりです。
+### Playback
 
-### 再生
-
-| キー | 操作 |
+| Key | Action |
 |---|---|
-| `Space` | 再生 / 一時停止 |
-| `Enter` | 選択した曲を再生 |
-| `J` | 前の曲 |
-| `K` | 次の曲 |
-| `Shift` + `←` | 5 秒戻る |
-| `Shift` + `→` | 5 秒進む |
-| `S` | シャッフル切り替え |
-| `R` | リピート切り替え |
-| `Ctrl` + `↑` | 音量を上げる |
-| `Ctrl` + `↓` | 音量を下げる |
+| `Space` | Play / pause |
+| `Enter` | Play the selected track |
+| `J` | Previous track |
+| `K` | Next track |
+| `Shift` + `←` | Seek back 5 seconds |
+| `Shift` + `→` | Seek forward 5 seconds |
+| `S` | Toggle shuffle |
+| `R` | Toggle repeat |
+| `Ctrl` + `↑` | Volume up |
+| `Ctrl` + `↓` | Volume down |
 
-### ナビゲーション・検索
+### Navigation & search
 
-| キー | 操作 |
+| Key | Action |
 |---|---|
-| `/` | 検索にフォーカス |
-| `Ctrl` + `F` | 検索にフォーカス |
-| `Ctrl` + `L` | ライブラリへ戻る（検索クリア） |
-| `Esc` | 検索 / 入力を抜ける・ダイアログを閉じる |
+| `/` | Focus search |
+| `Ctrl` + `F` | Focus search |
+| `Ctrl` + `L` | Return to library (clear search) |
+| `Esc` | Exit search / input, close dialog |
 
-### リスト操作
+### List operations
 
-| キー | 操作 |
+| Key | Action |
 |---|---|
-| `↑` / `↓` | 選択を上下に移動 |
-| `Shift` + `↑` / `↓` | 選択範囲を拡張 |
-| `Ctrl` + `A` | すべて選択 |
-| `Ctrl` + `I` | 選択した曲を編集（Get Info） |
-| `≣`（アプリケーションキー） | コンテキストメニュー（フォーカス行基準で表示） |
+| `↑` / `↓` | Move the selection up / down |
+| `Shift` + `↑` / `↓` | Extend the selection |
+| `Ctrl` + `A` | Select all |
+| `Ctrl` + `I` | Edit the selected track (Get Info) |
+| `≣` (application key) | Context menu (shown relative to the focused row) |
 
-### ヘルプ
+### Help
 
-| キー | 操作 |
+| Key | Action |
 |---|---|
-| `?` | このショートカット一覧を表示 |
+| `?` | Show this shortcut list |
