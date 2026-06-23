@@ -822,24 +822,10 @@ export function TrackTable({ onLoadMore, onTracksChanged, onEditTrack, onConvert
         })}
         {/* 末尾へのドロップ位置インジケータ。 */}
         {dropIndicator === fields.length && <span className="cb-h-droplast" />}
-        {/* 選択件数 / 全件数の控えめな表示。右端の add 列の手前に置く。 */}
-        <span
-          style={{
-            marginLeft: "auto",
-            paddingLeft: 10,
-            paddingRight: 4,
-            flexShrink: 0,
-            color: "var(--mut)",
-            fontVariantNumeric: "tabular-nums",
-            letterSpacing: "0.3px",
-            textTransform: "none",
-          }}
-          title="選択件数 / 全件数"
-        >
-          {selectedTrackIds.size > 0
-            ? `${selectedTrackIds.size}選択 / ${tracks.length}曲`
-            : `${tracks.length}曲`}
-        </span>
+        {/* 末尾の add 列プレースホルダ。本体行の .cb-add-cell(40px) と列幅を揃える。
+            以前ここにあった「N選択 / N曲」表示は flex 行に可変幅要素を挟み、曲名列
+            (flex:1) の幅をヘッダーと本体でずらして列をミスアラインさせていたため撤去し、
+            選択/件数はツールバー(cb-subbar)へ移設した。 */}
         <span className="cb-h-add" />
       </div>
 

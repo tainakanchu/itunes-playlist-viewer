@@ -437,6 +437,11 @@ input {
   color: var(--mut);
   font-size: 11.5px;
 }
+.cb-titlesel {
+  color: var(--ac);
+  font-size: 11.5px;
+  font-weight: 600;
+}
 .cb-stats {
   margin-left: auto;
   display: flex;

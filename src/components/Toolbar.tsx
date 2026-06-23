@@ -65,6 +65,7 @@ export function Toolbar({ onLibraryChanged, onOpenRipDialog, onOpenRulesPanel, o
     selectedPlaylistId,
     playlists,
     tracks,
+    selectedTrackIds,
     analysisActive,
     autoExportEnabled,
     autoExportPath,
@@ -479,6 +480,9 @@ export function Toolbar({ onLibraryChanged, onOpenRipDialog, onOpenRulesPanel, o
       <div className="cb-subbar">
         <span className="cb-title">{title}</span>
         <span className="cb-titlesub">· {subCount}</span>
+        {selectedTrackIds.size > 0 && (
+          <span className="cb-titlesel">· {selectedTrackIds.size.toLocaleString()} selected</span>
+        )}
         <div className="cb-stats">
           {analysisActive && (
             <span className="cb-status">
