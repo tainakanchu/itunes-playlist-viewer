@@ -10,6 +10,36 @@ Each release is documented in both Japanese and English.
 
 ## [Unreleased]
 
+## [v0.8.10] - 2026-06-24
+
+### 日本語
+
+#### デスクトップ
+- **レイアウト崩れの修正**：設定や曲情報などのモーダルが内容に引っ張られて横に広がり、はみ出し・横スクロールしていた問題を修正。長いパスやジャンルタグでの崩れも防止。
+- **アートワークの切替を Columns に統合**：重複していたツールバーの「Artwork」ボタンを廃止（表示は「Columns」内で切替）。
+- **並び順の改善**：アルバムアーティスト / アルバム / アーティストで並べたとき、同じアルバム内をトラック番号順（ディスク→トラック→曲名）で表示。
+- **ジャンルの一括編集を修正**：複数曲をまとめて編集したとき、追加のつもりが全曲上書きになっていた問題を修正（複数選択時は追加/削除のみ反映）。ジャンルタグをドラッグで並べ替え可能に。
+
+#### モバイル
+- **レーティングの設定**：プレイヤー画面で ★ をタップしてレートを付けられるように。
+- **クラッシュ修正**：「アルバムなし」の曲のまとまりを開くとクラッシュする問題を修正。
+- **ミニプレイヤーを常時表示**：アーティスト/アルバムなどの画面でも下部に再生中バーが出るように。
+- **下部の余白調整**：設定などで再生中に項目がミニプレイヤーに隠れないように。
+
+### English
+
+#### Desktop
+- **Layout fixes**: modals (settings, track info, etc.) no longer stretch to their content and overflow with a horizontal scrollbar; also hardened against long paths / genre tags.
+- **Artwork toggle merged into Columns**: removed the duplicate toolbar "Artwork" button (toggle lives in the Columns popover).
+- **Better sorting**: when sorting by album artist / album / artist, tracks within an album are ordered by disc → track number → name.
+- **Fixed bulk genre edit**: editing multiple tracks at once overwrote every track's genre instead of adding; multi-select now applies adds/removes only. Genre tags can be reordered by drag.
+
+#### Mobile
+- **Set ratings**: tap the ★ on the player screen to rate a track.
+- **Crash fix**: opening the "no album" group of tracks no longer crashes.
+- **Persistent mini-player**: the now-playing bar now shows on artist/album and other screens.
+- **Bottom padding**: items are no longer hidden behind the mini-player during playback (settings, etc.).
+
 ## [v0.8.9] - 2026-06-23
 
 ### 日本語
