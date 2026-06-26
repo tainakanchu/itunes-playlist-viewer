@@ -16,11 +16,31 @@ import {
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as Device from "expo-device";
+import {
+  isAvailable as mdnsIsAvailable,
+  startDiscovery,
+  stopDiscovery,
+  addServiceFoundListener,
+  type DiscoveredService,
+} from "expo-crateforge-mdns";
 
 import { ApiClient, useConnection } from "@crateforge/core";
 import { PALETTE, TV_FONT, FOCUS_RING } from "@/theme/palette";
 
 type Phase = "input" | "polling" | "error";
+
+// ネイティブ mDNS モジュールが使えるか（Expo Go / web / 旧 dev build では false）。
+// false のときは探索 UI を出さず、従来どおり IP:port の手入力のみで動かす。
+const DISCOVERY_AVAILABLE = mdnsIsAvailable();
+
+// Android TV の Gboard は全角固定になりがちで、IP:port が全角で入力されると接続に失敗する。
+// 入力時に全角英数字/記号（U+FF01..U+FF5E）と全角スペース（U+3000）を半角へ正規化する。
+function toHalfWidth(s: string): string {
+  return s
+    .replace(/[！-～]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(/　/g, " ");
+}
 
 export default function ConnectScreen() {
   const [address, setAddress] = useState("");
@@ -29,6 +49,8 @@ export default function ConnectScreen() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [addressFocused, setAddressFocused] = useState(false);
   const [btnFocused, setBtnFocused] = useState(false);
+  const [discovered, setDiscovered] = useState<DiscoveredService[]>([]);
+  const [discoveredFocusKey, setDiscoveredFocusKey] = useState<string | null>(null);
   const sessionRef = useRef<string | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const clientRef = useRef<ApiClient | null>(null);
@@ -44,57 +66,96 @@ export default function ConnectScreen() {
     return () => stopPolling();
   }, [stopPolling]);
 
-  const handleStart = useCallback(async () => {
-    const trimmed = address.trim();
-    if (!trimmed) {
-      setErrorMsg("デスクトップの IP:port を入力してください（例: 192.168.1.10:8787）");
-      setPhase("error");
-      return;
-    }
+  // mDNS 探索: フォームが出ている間（polling 以外）だけ走らせる。
+  // ネイティブが無ければ何もしない（startDiscovery 等は no-op）。
+  // polling に入ると cleanup で stopDiscovery され、戻ると再開する。
+  useEffect(() => {
+    if (!DISCOVERY_AVAILABLE || phase === "polling") return;
+    startDiscovery();
+    const sub = addServiceFoundListener((svc) => {
+      setDiscovered((prev) => {
+        const key = `${svc.host}:${svc.port}`;
+        if (prev.some((s) => `${s.host}:${s.port}` === key)) return prev;
+        return [...prev, svc];
+      });
+    });
+    return () => {
+      sub.remove();
+      stopDiscovery();
+    };
+  }, [phase]);
 
-    setPhase("polling");
-    setErrorMsg(null);
+  const startPairing = useCallback(
+    async (rawAddress: string) => {
+      const trimmed = rawAddress.trim();
+      if (!trimmed) {
+        setErrorMsg("デスクトップの IP:port を入力してください（例: 192.168.1.10:8787）");
+        setPhase("error");
+        return;
+      }
 
-    try {
-      const client = new ApiClient({ baseUrl: trimmed, token: null });
-      clientRef.current = client;
-      const { session, code: pairingCode } = await client.pairStart();
-      sessionRef.current = session;
-      setCode(pairingCode);
+      setPhase("polling");
+      setErrorMsg(null);
 
-      // 2秒ごとにポーリング
-      pollTimerRef.current = setInterval(async () => {
-        try {
-          if (!sessionRef.current || !clientRef.current) return;
-          const res = await clientRef.current.pairPoll(sessionRef.current);
-          if (res.status === "approved" && res.token != null) {
-            stopPolling();
-            await useConnection.getState().connect(trimmed, res.token);
-            // Gate が / へリダイレクトする
-          } else if (res.status === "expired") {
+      try {
+        const client = new ApiClient({ baseUrl: trimmed, token: null });
+        clientRef.current = client;
+        const deviceName = Device.deviceName ?? Device.modelName ?? "Android TV";
+        const { session, code: pairingCode } = await client.pairStart(deviceName, "android-tv");
+        sessionRef.current = session;
+        setCode(pairingCode);
+
+        // 2秒ごとにポーリング
+        pollTimerRef.current = setInterval(async () => {
+          try {
+            if (!sessionRef.current || !clientRef.current) return;
+            const res = await clientRef.current.pairPoll(sessionRef.current);
+            if (res.status === "approved" && res.token != null) {
+              stopPolling();
+              await useConnection.getState().connect(trimmed, res.token);
+              // Gate が / へリダイレクトする
+            } else if (res.status === "expired") {
+              stopPolling();
+              setPhase("error");
+              setErrorMsg("コードが期限切れになりました。もう一度お試しください。");
+              setCode(null);
+            }
+          } catch (e) {
             stopPolling();
             setPhase("error");
-            setErrorMsg("コードが期限切れになりました。もう一度お試しください。");
+            setErrorMsg(e instanceof Error ? e.message : "ポーリングエラー");
             setCode(null);
           }
-        } catch (e) {
-          stopPolling();
-          setPhase("error");
-          setErrorMsg(e instanceof Error ? e.message : "ポーリングエラー");
-          setCode(null);
-        }
-      }, 2000);
-    } catch (e) {
-      setPhase("error");
-      setErrorMsg(e instanceof Error ? e.message : "接続できませんでした");
-    }
-  }, [address, stopPolling]);
+        }, 2000);
+      } catch (e) {
+        setPhase("error");
+        setErrorMsg(e instanceof Error ? e.message : "接続できませんでした");
+      }
+    },
+    [stopPolling],
+  );
+
+  const handleStart = useCallback(() => {
+    void startPairing(address);
+  }, [address, startPairing]);
+
+  // 探索結果を選んだら探索を止め、その IP:port でペアリングを開始する。
+  const handlePickDiscovered = useCallback(
+    (svc: DiscoveredService) => {
+      const addr = `${svc.host}:${svc.port}`;
+      stopDiscovery();
+      setAddress(addr);
+      void startPairing(addr);
+    },
+    [startPairing],
+  );
 
   const handleRetry = useCallback(() => {
     stopPolling();
     setPhase("input");
     setCode(null);
     setErrorMsg(null);
+    setDiscovered([]);
     sessionRef.current = null;
     clientRef.current = null;
   }, [stopPolling]);
@@ -111,7 +172,7 @@ export default function ConnectScreen() {
             <TextInput
               style={[styles.input, addressFocused && FOCUS_RING]}
               value={address}
-              onChangeText={setAddress}
+              onChangeText={(t) => setAddress(toHalfWidth(t))}
               placeholder="192.168.1.10:8787"
               placeholderTextColor={PALETTE.textSub}
               keyboardType="url"
@@ -129,6 +190,34 @@ export default function ConnectScreen() {
             >
               <Text style={styles.buttonText}>ペアリング開始</Text>
             </Pressable>
+
+            {DISCOVERY_AVAILABLE && (
+              <View style={styles.discoverBox}>
+                <Text style={styles.discoverLabel}>近くのサーバー</Text>
+                {discovered.length === 0 ? (
+                  <Text style={styles.discoverHint}>同じ LAN を検索中…</Text>
+                ) : (
+                  discovered.map((svc) => {
+                    const key = `${svc.host}:${svc.port}`;
+                    const focused = discoveredFocusKey === key;
+                    return (
+                      <Pressable
+                        key={key}
+                        style={[styles.discoverItem, focused && styles.discoverItemFocused]}
+                        onPress={() => handlePickDiscovered(svc)}
+                        onFocus={() => setDiscoveredFocusKey(key)}
+                        onBlur={() =>
+                          setDiscoveredFocusKey((k) => (k === key ? null : k))
+                        }
+                      >
+                        <Text style={styles.discoverItemName}>{svc.name}</Text>
+                        <Text style={styles.discoverItemAddr}>{key}</Text>
+                      </Pressable>
+                    );
+                  })
+                )}
+              </View>
+            )}
           </>
         )}
 
@@ -257,6 +346,44 @@ const styles = StyleSheet.create({
     fontSize: TV_FONT.sm,
     color: PALETTE.textSub,
     marginTop: 8,
+  },
+  discoverBox: {
+    width: "100%",
+    maxWidth: 600,
+    marginTop: 40,
+    gap: 12,
+  },
+  discoverLabel: {
+    fontSize: TV_FONT.sm,
+    color: PALETTE.textSub,
+  },
+  discoverHint: {
+    fontSize: TV_FONT.sm,
+    color: PALETTE.textSub,
+    paddingVertical: 12,
+  },
+  discoverItem: {
+    backgroundColor: PALETTE.surface,
+    borderRadius: 8,
+    borderWidth: 3,
+    borderColor: "transparent",
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+  },
+  discoverItemFocused: {
+    borderColor: PALETTE.teal,
+    backgroundColor: PALETTE.focusBg,
+  },
+  discoverItemName: {
+    fontSize: TV_FONT.md,
+    color: PALETTE.text,
+    fontWeight: "600",
+  },
+  discoverItemAddr: {
+    fontSize: TV_FONT.xs,
+    color: PALETTE.textSub,
+    marginTop: 4,
+    fontVariant: ["tabular-nums"],
   },
   errorBox: {
     alignItems: "center",

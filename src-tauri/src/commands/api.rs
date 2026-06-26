@@ -12,6 +12,7 @@ use tauri::{AppHandle, Manager, State};
 
 use crate::api;
 use crate::commands::library::open_db;
+use crate::devices::ValidTokens;
 use crate::pairing::PairingRegistry;
 
 /// API サーバーの設定キー: 有効フラグ。
@@ -139,6 +140,7 @@ pub fn set_api_server_config(
     app: AppHandle,
     server: State<'_, Mutex<Option<api::ServerControl>>>,
     pairings: State<'_, PairingRegistry>,
+    valid_tokens: State<'_, ValidTokens>,
     enabled: bool,
     port: u16,
 ) -> Result<ApiServerStatus, String> {
@@ -165,8 +167,10 @@ pub fn set_api_server_config(
     // 3. enabled なら起動する。失敗時は running=false でエラーを返す。
     if enabled {
         let dir = app_data_dir(&app)?;
-        let (_, _, lan_enabled, token) = read_full_config(&app)?;
-        match api::start(dir, port, app.clone(), lan_enabled, token, pairings.inner().clone()) {
+        let (_, _, lan_enabled, _) = read_full_config(&app)?;
+        // api::start が起動時に DB から有効トークン集合を再構築するので、
+        // ここでは共有の ValidTokens (Arc) を渡すだけでよい。
+        match api::start(dir, port, app.clone(), lan_enabled, valid_tokens.inner().clone(), pairings.inner().clone()) {
             Ok(ctrl) => {
                 let mut guard = server.lock().map_err(|e| e.to_string())?;
                 *guard = Some(ctrl);
@@ -185,22 +189,21 @@ pub fn start_if_enabled(
     app: &AppHandle,
     server: &Mutex<Option<api::ServerControl>>,
     pairings: &PairingRegistry,
+    valid_tokens: &ValidTokens,
 ) -> Result<(), String> {
     let (enabled, port, lan_enabled, token) = read_full_config(app)?;
     if !enabled {
         return Ok(());
     }
     // LAN 有効でトークンが未生成の場合は生成して保存する。
-    let token = if lan_enabled && token.is_none() {
+    // (生成した legacy トークンは api::start 内の reload で集合へ反映される。)
+    if lan_enabled && token.is_none() {
         let new_token = gen_token();
         let db = open_db(app)?;
         db.set_state(KEY_TOKEN, &new_token).map_err(|e| e.to_string())?;
-        Some(new_token)
-    } else {
-        token
-    };
+    }
     let dir = app_data_dir(app)?;
-    let ctrl = api::start(dir, port, app.clone(), lan_enabled, token, pairings.clone())?;
+    let ctrl = api::start(dir, port, app.clone(), lan_enabled, valid_tokens.clone(), pairings.clone())?;
     let mut guard = server.lock().map_err(|e| e.to_string())?;
     *guard = Some(ctrl);
     Ok(())
@@ -212,6 +215,7 @@ pub fn set_api_lan_enabled(
     app: AppHandle,
     server: State<'_, Mutex<Option<api::ServerControl>>>,
     pairings: State<'_, PairingRegistry>,
+    valid_tokens: State<'_, ValidTokens>,
     enabled: bool,
 ) -> Result<ApiServerStatus, String> {
     // 1. 設定を永続化。
@@ -241,10 +245,10 @@ pub fn set_api_lan_enabled(
     }
 
     // 3. api_server_enabled が true なら再起動する。
-    let (api_enabled, port, lan_enabled, token) = read_full_config(&app)?;
+    let (api_enabled, port, lan_enabled, _) = read_full_config(&app)?;
     if api_enabled {
         let dir = app_data_dir(&app)?;
-        match api::start(dir, port, app.clone(), lan_enabled, token, pairings.inner().clone()) {
+        match api::start(dir, port, app.clone(), lan_enabled, valid_tokens.inner().clone(), pairings.inner().clone()) {
             Ok(ctrl) => {
                 let mut guard = server.lock().map_err(|e| e.to_string())?;
                 *guard = Some(ctrl);
@@ -262,12 +266,21 @@ pub fn regenerate_api_token(
     app: AppHandle,
     server: State<'_, Mutex<Option<api::ServerControl>>>,
     pairings: State<'_, PairingRegistry>,
+    valid_tokens: State<'_, ValidTokens>,
 ) -> Result<ApiServerStatus, String> {
-    // 1. 新トークンを生成して永続化。
+    // 1. 新しい legacy 共有トークンを生成して永続化する。
+    //    旧 legacy を有効集合から除き、新 legacy を加える (デバイス別トークンは残す)。
+    //    サーバー再起動時は api::start の reload が DB から同じ集合を作り直すが、
+    //    未起動時 (api_server_enabled=false) でも整合するようここでも更新しておく。
     {
         let db = open_db(&app)?;
+        let old_token = db.get_state(KEY_TOKEN).map_err(|e| e.to_string())?;
         let new_token = gen_token();
         db.set_state(KEY_TOKEN, &new_token).map_err(|e| e.to_string())?;
+        if let Some(old) = old_token {
+            valid_tokens.remove(&old);
+        }
+        valid_tokens.insert(new_token);
     }
 
     // 2. 既存ハンドルがあれば停止する。
@@ -282,10 +295,10 @@ pub fn regenerate_api_token(
     }
 
     // 3. api_server_enabled が true なら再起動する。
-    let (api_enabled, port, lan_enabled, token) = read_full_config(&app)?;
+    let (api_enabled, port, lan_enabled, _) = read_full_config(&app)?;
     if api_enabled {
         let dir = app_data_dir(&app)?;
-        match api::start(dir, port, app.clone(), lan_enabled, token, pairings.inner().clone()) {
+        match api::start(dir, port, app.clone(), lan_enabled, valid_tokens.inner().clone(), pairings.inner().clone()) {
             Ok(ctrl) => {
                 let mut guard = server.lock().map_err(|e| e.to_string())?;
                 *guard = Some(ctrl);

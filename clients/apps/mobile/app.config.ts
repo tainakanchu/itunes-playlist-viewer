@@ -36,10 +36,18 @@ const config: ExpoConfig = {
     infoPlist: {
       // 背景再生（ロック中も継続）。
       UIBackgroundModes: ["audio"],
+      // mDNS（Bonjour）で同一 LAN の Crateforge サーバーを探索するための宣言。
+      // iOS 14+ はローカルネットワークアクセスに明示的な許可と Bonjour サービス型の宣言が必須。
+      NSBonjourServices: ["_crateforge._tcp"],
+      NSLocalNetworkUsageDescription:
+        "同じ Wi-Fi 上のデスクトップ（Crateforge サーバー）を自動で探すためにローカルネットワークへアクセスします。",
     },
   },
   android: {
     package: "com.tainakanchu.crateforge",
+    // mDNS 探索（expo-crateforge-mdns / NsdManager）は MulticastLock 取得に
+    // CHANGE_WIFI_MULTICAST_STATE が必要。モバイルには app.plugin.js が無いためここで付与。
+    permissions: ["android.permission.CHANGE_WIFI_MULTICAST_STATE"],
     adaptiveIcon: {
       // 背景は単色（teal-dark）、前景は Crateforge のダイヤモンドマーク。
       backgroundColor: "#0E1416",

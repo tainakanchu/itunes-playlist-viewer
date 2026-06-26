@@ -1,0 +1,10 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <!--
+    No permissions are declared here on purpose. NsdManager + MulticastLock require
+    the host app to grant: INTERNET, ACCESS_NETWORK_STATE, ACCESS_WIFI_STATE and
+    CHANGE_WIFI_MULTICAST_STATE. These are injected by the app-side config plugin
+    (app.plugin.js) so the app stays the single source of truth for permissions.
+  -->
+
+</manifest>

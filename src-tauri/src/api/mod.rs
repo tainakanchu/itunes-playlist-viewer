@@ -31,8 +31,10 @@ pub struct ApiState {
     pub app_data_dir: PathBuf,
     /// 書き込み後の通知先。テストでは `None` (emit は no-op)。
     pub app: Option<tauri::AppHandle>,
-    /// LAN アクセストークン。None = LAN 無効またはトークン未生成。
-    pub token: Option<String>,
+    /// LAN アクセスの有効トークン集合 (legacy 共有トークン + デバイス別トークン)。
+    /// `Arc` を Tauri コマンドと共有し、承認/失効は再起動を待たず即時反映される。
+    /// 空集合 = LAN 無効またはトークン未生成 (LAN 認証は FORBIDDEN)。
+    pub tokens: crate::devices::ValidTokens,
     /// デバイスペアリング レジストリ。axum ハンドラと Tauri コマンドで Arc を共有する。
     pub pairings: crate::pairing::PairingRegistry,
 }
@@ -50,6 +52,32 @@ impl ApiState {
         if let Some(app) = &self.app {
             use tauri::Emitter; // v2 では emit は Emitter トレイト経由。
             let _ = app.emit("library-changed", serde_json::json!({ "playlistId": playlist_id }));
+        }
+    }
+
+    /// ペアリング要求が来たことを WebView へ通知する (承認ポップアップ表示用)。
+    /// `notify_library_changed` と同じ AppHandle 経路で emit する。
+    /// API サーバー単体起動 (テスト) では app=None なので何もしない。emit 失敗は無視。
+    pub(crate) fn notify_pairing_requested(
+        &self,
+        session: &str,
+        code: &str,
+        device_name: Option<&str>,
+        platform: Option<&str>,
+        age_secs: u64,
+    ) {
+        if let Some(app) = &self.app {
+            use tauri::Emitter; // v2 では emit は Emitter トレイト経由。
+            let _ = app.emit(
+                "pairing-requested",
+                serde_json::json!({
+                    "session": session,
+                    "code": code,
+                    "deviceName": device_name,
+                    "platform": platform,
+                    "ageSecs": age_secs,
+                }),
+            );
         }
     }
 }
@@ -122,12 +150,47 @@ fn is_rating_path(path: &str) -> bool {
 
 // ────────────────────── ペアリングエンドポイント ──────────────────────────
 
+/// POST /api/pair/start のリクエストボディ (全フィールド任意・後方互換)。
+/// 本文なし・不正 JSON でも `Default` で全 None にフォールバックする。
+#[derive(serde::Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct PairStartBody {
+    device_name: Option<String>,
+    platform: Option<String>,
+}
+
 /// POST /api/pair/start — ペアリングセッションを開始する。
+/// リクエストボディ (任意): `{ "deviceName"?: String, "platform"?: String }`。
+/// 本文なし (既存出荷クライアント) でも 200 を返す。生の `String` で受け、非空なら
+/// JSON として解釈し、空 / パース失敗なら全 None にフォールバックする
+/// (`Json` 抽出子は必須化されてしまうため使わない)。
 /// レスポンス: `{ "session": String, "code": String }`
+/// 併せて `pairing-requested` イベントを発火し、デスクトップに承認ポップアップを促す。
 pub(crate) async fn pair_start(
     axum::extract::State(state): axum::extract::State<ApiState>,
+    body: String,
 ) -> impl axum::response::IntoResponse {
-    let (session, code) = state.pairings.create_session();
+    // 非空のときだけ JSON 解釈する。空 / 失敗時は全 None。
+    let parsed: PairStartBody = if body.trim().is_empty() {
+        PairStartBody::default()
+    } else {
+        serde_json::from_str(&body).unwrap_or_default()
+    };
+    let device_name = parsed.device_name;
+    let platform = parsed.platform;
+
+    let (session, code) =
+        state.pairings.create_session(device_name.clone(), platform.clone());
+
+    // セッション生成直後なので ageSecs は 0。
+    state.notify_pairing_requested(
+        &session,
+        &code,
+        device_name.as_deref(),
+        platform.as_deref(),
+        0,
+    );
+
     axum::Json(serde_json::json!({ "session": session, "code": code }))
 }
 
@@ -198,10 +261,11 @@ async fn auth_guard(
     }
 
     // LAN リクエスト: トークンを検証する。
-    let expected_token = match &state.token {
-        Some(t) => t.clone(),
-        None => return StatusCode::FORBIDDEN.into_response(),
-    };
+    // 有効トークン集合 (legacy 共有トークン + デバイス別トークン) が空 = トークン
+    // 未設定なので、従来どおり FORBIDDEN とする。
+    if state.tokens.is_empty() {
+        return StatusCode::FORBIDDEN.into_response();
+    }
 
     // クエリパラメータまたはヘッダからトークンを取り出す。
     let query_token = uri.query().and_then(|q| {
@@ -218,8 +282,10 @@ async fn auth_guard(
         .and_then(|v| v.to_str().ok())
         .map(|s| s.to_string());
 
+    // 提示されたトークンが有効集合に含まれるか。これにより共有トークンと
+    // デバイス別トークンのどちらでも認証できる (後方互換)。
     let provided = query_token.or(header_token);
-    let authorized = provided.as_deref() == Some(expected_token.as_str());
+    let authorized = provided.as_deref().is_some_and(|t| state.tokens.contains(t));
 
     if !authorized {
         return StatusCode::UNAUTHORIZED.into_response();
@@ -347,6 +413,11 @@ pub struct ServerControl {
     shutdown: tokio::sync::oneshot::Sender<()>,
     /// serve タスクのハンドル。`stop` でタスク終了を待ち合わせる (ポート解放の同期)。
     handle: tauri::async_runtime::JoinHandle<()>,
+    /// LAN 公開時の mDNS 広告 (None = LAN 無効 / 広告失敗)。
+    /// `ServerControl` が drop されると `MdnsAdvertiser` の `Drop` が走り、
+    /// ネットワークから広告を取り下げる (停止に追従)。
+    #[allow(dead_code)]
+    mdns: Option<crate::mdns::MdnsAdvertiser>,
 }
 
 impl ServerControl {
@@ -382,7 +453,7 @@ pub fn start(
     port: u16,
     app: tauri::AppHandle,
     lan: bool,
-    token: Option<String>,
+    tokens: crate::devices::ValidTokens,
     pairings: crate::pairing::PairingRegistry,
 ) -> Result<ServerControl, String> {
     let ip = if lan { [0, 0, 0, 0] } else { [127, 0, 0, 1] };
@@ -394,11 +465,23 @@ pub fn start(
         .map_err(|e| format!("bind 127.0.0.1:{port} failed: {e}"))?;
     let local = listener.local_addr().map_err(|e| e.to_string())?;
 
+    // 起動のたびに DB を単一の真実の源として有効トークン集合を同期する
+    // (legacy `api_token` + 全デバイストークン)。失効/再生成/初回トークン生成は
+    // すべて DB へ書かれているため、ここで再構築すれば再起動後も整合する。
+    // DB を開けないのは致命ではない (既存の集合のまま続行) ので warn に留める。
+    match crate::db::Database::open(&app_data_dir) {
+        Ok(db) => crate::devices::reload_valid_tokens(&db, &tokens),
+        Err(e) => crate::logging::write_line(
+            "warn",
+            &format!("valid token reload skipped (db open failed): {e}"),
+        ),
+    }
+
     let (tx, rx) = tokio::sync::oneshot::channel::<()>();
     let state = ApiState {
         app_data_dir,
         app: Some(app),
-        token,
+        tokens,
         pairings,
     };
     let svc = router(state).into_make_service_with_connect_info::<SocketAddr>();
@@ -410,10 +493,29 @@ pub fn start(
             .await;
     });
 
+    // LAN 公開時のみ mDNS で広告する。広告はベストエフォートで、失敗しても
+    // サーバー稼働は止めない (warn ログのみ)。実 bind ポート (local.port()) を
+    // 広告するので、フォールバックでポートがズレても正しい値が伝わる。
+    let mdns = if lan {
+        match crate::mdns::MdnsAdvertiser::start(local.port()) {
+            Ok(adv) => Some(adv),
+            Err(e) => {
+                crate::logging::write_line(
+                    "warn",
+                    &format!("mDNS advertise failed (non-fatal): {e}"),
+                );
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     Ok(ServerControl {
         addr: local,
         shutdown: tx,
         handle,
+        mdns,
     })
 }
 
@@ -532,7 +634,7 @@ mod tests {
         let app = router(ApiState {
             app_data_dir: dir.path().to_path_buf(),
             app: None,
-            token: None,
+            tokens: crate::devices::ValidTokens::default(),
             pairings: crate::pairing::PairingRegistry::default(),
         });
         (dir, app)
@@ -1494,5 +1596,94 @@ mod tests {
         let header_val = "abc123";
         assert_eq!(tok, header_val);
         assert_ne!(tok, "wrong");
+    }
+
+    /// LAN (非ループバック) からのリクエストを、有効トークン集合で認証する。
+    /// 集合に含まれるトークン (共有/デバイス別いずれも) は 200、含まれないものは 401、
+    /// 集合が空なら 403 (= トークン未設定)。ループバックは常に素通し。
+    #[tokio::test]
+    async fn case_lan_auth_uses_valid_token_set() {
+        use axum::extract::ConnectInfo;
+
+        // 集合に「デバイス別トークン」を 1 つだけ入れた状態を作る。
+        let dir = tempfile::tempdir().unwrap();
+        let db = crate::db::Database::open(dir.path()).unwrap();
+        seed(&db);
+        let tokens = crate::devices::ValidTokens::default();
+        tokens.insert("devtok".into());
+        let app = router(ApiState {
+            app_data_dir: dir.path().to_path_buf(),
+            app: None,
+            tokens,
+            pairings: crate::pairing::PairingRegistry::default(),
+        });
+
+        let lan_ip = SocketAddr::from(([192, 168, 1, 50], 54321));
+        let with_lan = |mut r: Request<Body>| {
+            r.extensions_mut().insert(ConnectInfo(lan_ip));
+            r
+        };
+
+        // 1. 集合に含まれるトークン → 200。
+        let ok = with_lan(
+            Request::builder()
+                .method("GET")
+                .uri("/api/health")
+                .header("X-API-Token", "devtok")
+                .body(Body::empty())
+                .unwrap(),
+        );
+        let resp = app.clone().oneshot(ok).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // 2. クエリパラメータ経由でも同じく 200。
+        let ok_q = with_lan(
+            Request::builder()
+                .method("GET")
+                .uri("/api/health?token=devtok")
+                .body(Body::empty())
+                .unwrap(),
+        );
+        let resp = app.clone().oneshot(ok_q).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // 3. 集合に無いトークン → 401。
+        let bad = with_lan(
+            Request::builder()
+                .method("GET")
+                .uri("/api/health")
+                .header("X-API-Token", "wrong")
+                .body(Body::empty())
+                .unwrap(),
+        );
+        let resp = app.clone().oneshot(bad).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+
+        // 4. ループバックからはトークン不要で 200 (後方互換)。
+        let loopback = Request::builder()
+            .method("GET")
+            .uri("/api/health")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(loopback).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    /// 有効トークン集合が空なら、LAN からのデータアクセスは 403 (FORBIDDEN)。
+    #[tokio::test]
+    async fn case_lan_auth_empty_set_is_forbidden() {
+        use axum::extract::ConnectInfo;
+
+        let (_dir, app) = setup(); // setup は空集合の ValidTokens を使う。
+        let lan_ip = SocketAddr::from(([10, 0, 0, 2], 40000));
+        let mut req = Request::builder()
+            .method("GET")
+            .uri("/api/health")
+            .header("X-API-Token", "anything")
+            .body(Body::empty())
+            .unwrap();
+        req.extensions_mut().insert(ConnectInfo(lan_ip));
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
     }
 }

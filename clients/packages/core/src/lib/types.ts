@@ -186,6 +186,15 @@ export interface PlaylistTracksQuery {
   order?: string;
 }
 
+/** `POST /api/pair/start` のリクエストボディ（全フィールド任意・後方互換）。
+ * デスクトップ側の承認ポップアップに表示する端末情報。本文なしでも受理される。 */
+export interface PairStartRequest {
+  /** 端末名（例: Device.deviceName）。 */
+  deviceName?: string;
+  /** プラットフォーム識別子（例: "android-tv" / "android" / "ios"）。 */
+  platform?: string;
+}
+
 /** `POST /api/pair/start` のレスポンス。 */
 export interface PairStartResponse {
   session: string;

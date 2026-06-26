@@ -6,11 +6,13 @@ mod cd_ripper;
 mod commands;
 mod converter;
 mod db;
+mod devices;
 mod ffmpeg;
 mod fonts;
 mod importer;
 mod itunes_xml;
 mod logging;
+mod mdns;
 mod metadata;
 mod models;
 mod organizer;
@@ -44,6 +46,9 @@ pub fn run() {
     let api_server: Mutex<Option<api::ServerControl>> = Mutex::new(None);
     // デバイスペアリング レジストリ。axum ハンドラと Tauri コマンドで共有する。
     let pairing_registry = pairing::PairingRegistry::default();
+    // 有効トークン集合 (legacy 共有トークン + デバイス別トークン)。axum ハンドラと
+    // Tauri コマンドで Arc を共有する。中身は setup で DB から初期化する。
+    let valid_tokens = devices::ValidTokens::default();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -111,6 +116,7 @@ pub fn run() {
         .manage(smtc_state)
         .manage(api_server)
         .manage(pairing_registry)
+        .manage(valid_tokens)
         .setup(|app| {
             // クラッシュ痕跡を残すためのファイルロガー + panic フックを最初に仕込む
             // (GUI 起動で stderr が残らない。panic=abort でも abort 前にフックが走る)。
@@ -137,12 +143,25 @@ pub fn run() {
                 logging::write_line("warn", &format!("SMTC init failed (non-fatal): {}", e));
             }
 
+            // 有効トークン集合を DB から初期化する (legacy 共有トークン + 全デバイス
+            // トークン)。サーバー自動起動より前に済ませておくことで、起動直後から
+            // 既存デバイスが認証できる。DB を開けない場合は空集合のまま続行する。
+            {
+                let valid = app.state::<devices::ValidTokens>();
+                if let Ok(dir) = app.path().app_data_dir() {
+                    if let Ok(db) = db::Database::open(&dir) {
+                        devices::reload_valid_tokens(&db, &valid);
+                    }
+                }
+            }
+
             // 前回 enabled だった場合のみ内蔵 API サーバーを自動起動する。
             // bind 失敗 (ポート使用中など) は非致命: 警告だけ出して起動はブロックしない。
             {
                 let server_state = app.state::<Mutex<Option<api::ServerControl>>>();
                 let pairing_reg = app.state::<pairing::PairingRegistry>();
-                if let Err(e) = commands::api::start_if_enabled(app.handle(), &server_state, &pairing_reg) {
+                let valid = app.state::<devices::ValidTokens>();
+                if let Err(e) = commands::api::start_if_enabled(app.handle(), &server_state, &pairing_reg, &valid) {
                     eprintln!("API server auto-start failed (non-fatal): {}", e);
                     logging::write_line("warn", &format!("API server auto-start failed (non-fatal): {}", e));
                 }
@@ -244,6 +263,8 @@ pub fn run() {
             // デバイスペアリング
             commands::pairing::approve_pairing,
             commands::pairing::list_pending_pairings,
+            commands::pairing::list_paired_devices,
+            commands::pairing::revoke_device,
             // フォント
             commands::fonts::list_system_fonts,
             commands::fonts::get_ui_font,

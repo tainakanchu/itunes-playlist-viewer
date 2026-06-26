@@ -10,6 +10,8 @@
     "expo-audio": "~56.0.12",
     "expo-build-properties": "~56.0.19",
     "expo-constants": "~56.0.18",
+    "expo-crateforge-mdns": "workspace:*",
+    "expo-device": "~56.0.4",
     "expo-file-system": "~56.0.8",
     "expo-image": "~56.0.11",
     "expo-router": "~56.2.11",
