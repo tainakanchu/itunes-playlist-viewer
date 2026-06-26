@@ -10,19 +10,49 @@ Each release is documented in both Japanese and English.
 
 ## [Unreleased]
 
+## [v0.9.0] - 2026-06-26
+
 ### 日本語
+
+#### デスクトップ
+- **LAN クライアントのプッシュ承認**：TV/スマホが接続を要求するとデスクトップにポップアップが出て、確認コードを目視確認してワンクリックで承認できる（手入力不要）。
+- **ペアリング済みデバイスの管理**：設定に接続済み端末の一覧と個別解除を追加。承認のたびに端末ごとの個別トークンを発行（従来の共有トークンとも互換）。
+- **mDNS で LAN に自動公開**：LAN 公開時にデスクトップを `_crateforge._tcp` で広告し、クライアントから自動発見できるように。
 
 #### モバイル（OTA 配信）
 - **似た曲でラジオ再生**：曲の長押し、またはプレイヤーの類似曲セクションから、その曲＋似た曲をまとめて即プレイリスト再生。
 - **曲の長押しメニューを拡充**：似た曲でラジオ / 次に再生 / アーティストを見る / アルバムを保存（全画面で統一）。
-- **「アルバムなし」の曲をまとめて表示**：アーティスト画面で、アルバム情報のない曲を「アルバムなし」グループ（末尾）として表示・再生できるように（以前は除外していた）。
+- **「アルバムなし」の曲をまとめて表示**：アーティスト画面で、アルバム情報のない曲を「アルバムなし」グループ（末尾）として表示・再生できるように。
+
+#### モバイル・TV（フルビルド）
+- **mDNS で母艦を自動発見**：LAN 上の crateforge デスクトップを自動検出して一覧から選べるように（手入力IP / QR はフォールバックとして継続）。
+- **接続時のプッシュ承認**：接続要求時に端末名をデスクトップへ送り、ワンクリック承認に対応。
+
+#### TV（フルビルド）
+- **左サイドナビUIに刷新**：songs / albums / artists / playlists / search のサイドナビ構成に。
+- **再生ウィジェット連動**：ロック画面 / 通知から再生コントロール（メディアセッション）。
+- **アプリ一覧にアイコン表示**：Android TV の leanback ランチャーにアイコン（バナー）を表示。
+- **IP入力の全角IME対策**：Android TV の全角IMEで IP:port が壊れる問題を修正。
 
 ### English
+
+#### Desktop
+- **Push approval for LAN clients**: when a TV/phone requests a connection, a popup appears on the desktop — confirm the matching code and approve with one click (no manual entry).
+- **Paired device management**: Settings now lists connected devices with per-device revoke; each approval issues a per-device token (backward compatible with the shared token).
+- **mDNS advertisement**: the desktop advertises itself as `_crateforge._tcp` on the LAN when exposed, so clients can auto-discover it.
 
 #### Mobile (OTA)
 - **Similar-track radio**: instantly play a track plus its similar tracks as a queue — from the track long-press menu or the player's "similar tracks" section.
 - **Richer track long-press menu**: radio / play next / view artist / save album (consistent across screens).
-- **"No album" grouping**: tracks without album info are grouped as "アルバムなし" (at the end) on the artist screen, browsable and playable (previously omitted).
+- **"No album" grouping**: tracks without album info are grouped as "アルバムなし" (at the end) on the artist screen, browsable and playable.
+
+#### Mobile / TV (full build)
+- **mDNS auto-discovery**: discover crateforge desktops on the LAN and pick from a list (manual IP / QR remain as fallback).
+- **Push approval on connect**: send the device name to the desktop on connect for one-click approval.
+
+#### TV (full build)
+- **New left side-nav UI**, media session integration (lock screen / notification controls), and an app-list icon on the Android TV leanback launcher.
+- **Fixed full-width IME issue** that broke IP:port entry on Android TV.
 
 ## [v0.8.10] - 2026-06-24
 
