@@ -13,6 +13,7 @@ import type {
   Health,
   LibraryStats,
   PairPollResponse,
+  PairStartRequest,
   PairStartResponse,
   PlaybackState,
   Playlist,
@@ -226,10 +227,14 @@ export class ApiClient {
   // ---- ペアリング（公開エンドポイント; token 不要）----
   /**
    * ペアリングセッションを開始する。トークン不要（公開エンドポイント）。
-   * レスポンスの code をユーザーが手動でデスクトップ側の "端末を承認" 画面に入力する。
+   * デスクトップ側に「<端末名> が接続しようとしています」ポップアップを出すため、
+   * 任意で deviceName / platform を本文に載せる（後方互換: 省略時は本文なしで送る）。
+   * レスポンスの code は目視確認用で、ワンクリック承認できないときの手入力フォールバックにも使う。
    */
-  pairStart(): Promise<PairStartResponse> {
-    return this.post<PairStartResponse>("/api/pair/start");
+  pairStart(deviceName?: string, platform?: string): Promise<PairStartResponse> {
+    const body: PairStartRequest | undefined =
+      deviceName != null || platform != null ? { deviceName, platform } : undefined;
+    return this.post<PairStartResponse>("/api/pair/start", body);
   }
 
   /**

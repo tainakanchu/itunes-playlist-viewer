@@ -1,0 +1,29 @@
+{
+  "name": "expo-crateforge-mdns",
+  "version": "0.1.0",
+  "description": "Expo native module that discovers Crateforge servers on the local network via mDNS (_crateforge._tcp.).",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "expo",
+    "mdns",
+    "zeroconf",
+    "bonjour",
+    "nsd",
+    "crateforge"
+  ],
+  "peerDependencies": {
+    "expo": "*",
+    "react": "*",
+    "react-native": "*"
+  },
+  "devDependencies": {
+    "expo": "~56.0.12",
+    "typescript": "~6.0.3",
+    "@types/react": "~19.2.2"
+  }
+}

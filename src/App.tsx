@@ -13,6 +13,7 @@ import { RulesPanel } from "./components/rules/RulesPanel";
 import { ConvertDialog } from "./components/ConvertDialog";
 import { SmartPlaylistEditor } from "./components/SmartPlaylistEditor";
 import { SettingsDialog } from "./components/SettingsDialog";
+import { PairingApprovalDialog } from "./components/PairingApprovalDialog";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { Toaster } from "./components/Toaster";
 import { DropImportOverlay } from "./components/DropImportOverlay";
@@ -579,6 +580,8 @@ export default function App() {
         <SettingsDialog onClose={() => setSettingsOpen(false)} />
       )}
       {helpOpen && <ShortcutHelp onClose={() => setHelpOpen(false)} />}
+      {/* クライアント接続時のプッシュ承認ポップアップ（常設マウント）。 */}
+      <PairingApprovalDialog />
       <Toaster />
       {/* エクスプローラー/Finder からのドラッグ&ドロップ取り込み（issue #70） */}
       {isTauri && <DropImportOverlay onImported={triggerReload} />}

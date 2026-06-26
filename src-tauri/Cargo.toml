@@ -58,6 +58,9 @@ tower = { version = "0.5", features = ["util"] }
 local-ip-address = "0.6"
 getrandom = "0.2"
 qrcode = "0.14"
+# LAN 公開中の API サーバーを mDNS (DNS-SD) で広告する (サーバー側アドバタイズ)。
+# 純 Rust 実装でネイティブ依存なし。クライアント側の探索は別 issue の範囲。
+mdns-sd = "0.13"
 # API サーバーの bind で SO_REUSEADDR / SO_REUSEPORT を設定する (再起動時の
 # "address in use" 回避)。既に依存ツリー (tokio 経由) にある 0.6 系に合わせる。
 socket2 = { version = "0.6", features = ["all"] }

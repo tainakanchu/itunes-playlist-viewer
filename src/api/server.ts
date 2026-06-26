@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 export interface ApiServerStatus {
   enabled: boolean;
@@ -55,4 +56,40 @@ export interface PairingInfo {
 
 export async function listPendingPairings(): Promise<PairingInfo[]> {
   return invoke("list_pending_pairings");
+}
+
+/// クライアントがペアリングを要求したとき（API がセッションを生成したとき）に
+/// 発火するイベントの payload。
+export interface PairingRequest {
+  session: string;
+  code: string;
+  deviceName: string | null;
+  platform: string | null;
+  ageSecs: number;
+}
+
+/// ペアリング要求イベントを購読する。デスクトップ側で承認ポップアップを出すために使う。
+export function onPairingRequested(
+  cb: (req: PairingRequest) => void,
+): Promise<UnlistenFn> {
+  return listen<PairingRequest>("pairing-requested", (e) => cb(e.payload));
+}
+
+/// ペアリング済み（承認済み）デバイス。トークンは含まれない（漏洩防止）。
+export interface PairedDevice {
+  id: string;
+  deviceName: string | null;
+  platform: string | null;
+  createdAt: string;
+}
+
+/// ペアリング済みデバイスの一覧を取得する（デスクトップ管理 UI 向け）。
+export async function listPairedDevices(): Promise<PairedDevice[]> {
+  return invoke("list_paired_devices");
+}
+
+/// 指定 ID のデバイスを失効させる。その端末のトークンだけが無効になり、
+/// 他の端末や旧来の共有トークンには影響しない。存在しない ID でもエラーにはならない。
+export async function revokeDevice(id: string): Promise<void> {
+  return invoke("revoke_device", { id });
 }

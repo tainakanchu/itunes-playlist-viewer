@@ -22,6 +22,10 @@ pub struct Pairing {
     pub token: Option<String>,
     /// 作成日時（有効期限チェック用）。
     pub created_at: Instant,
+    /// クライアントが申告した端末名（承認ダイアログ表示用、任意）。
+    pub device_name: Option<String>,
+    /// クライアントが申告したプラットフォーム（任意）。
+    pub platform: Option<String>,
 }
 
 /// ペアリングセッション一覧を保持するレジストリ。`Arc<Mutex<...>>` でスレッド間共有。
@@ -31,7 +35,12 @@ pub struct PairingRegistry(pub Arc<Mutex<HashMap<String, Pairing>>>);
 impl PairingRegistry {
     /// 新規セッションを作成する。
     /// `session_id` (UUID 相当のランダム文字列) と人間向けの `code` (6 文字) を返す。
-    pub fn create_session(&self) -> (String, String) {
+    /// `device_name` / `platform` はクライアントが申告したメタ情報（任意）。
+    pub fn create_session(
+        &self,
+        device_name: Option<String>,
+        platform: Option<String>,
+    ) -> (String, String) {
         let session_id = gen_session_id();
         let code = gen_code();
         let pairing = Pairing {
@@ -39,6 +48,8 @@ impl PairingRegistry {
             approved: false,
             token: None,
             created_at: Instant::now(),
+            device_name,
+            platform,
         };
         let mut map = self.0.lock().unwrap_or_else(|p| p.into_inner());
         // 古いエントリを掃除してから追加する。
@@ -64,6 +75,19 @@ impl PairingRegistry {
         false
     }
 
+    /// `code` に一致する未承認・有効期限内のセッションの申告メタ
+    /// `(device_name, platform)` を覗き見る。承認前にデバイス別トークンを
+    /// 発行する際、その端末名/プラットフォームを記録するために使う。
+    /// 見つからなければ `None`。
+    pub fn peek_pending(&self, code: &str) -> Option<(Option<String>, Option<String>)> {
+        let code_normalized = code.trim().to_uppercase();
+        let mut map = self.0.lock().unwrap_or_else(|p| p.into_inner());
+        prune(&mut map);
+        map.values()
+            .find(|p| p.code == code_normalized && !p.approved)
+            .map(|p| (p.device_name.clone(), p.platform.clone()))
+    }
+
     /// `session_id` でポーリングする。
     /// - `None` → セッション不明 or 有効期限切れ。
     /// - `Some((false, None))` → pending。
@@ -83,6 +107,8 @@ impl PairingRegistry {
             .map(|p| PairingInfo {
                 code: p.code.clone(),
                 age_secs: p.created_at.elapsed().as_secs(),
+                device_name: p.device_name.clone(),
+                platform: p.platform.clone(),
             })
             .collect()
     }
@@ -94,6 +120,10 @@ impl PairingRegistry {
 pub struct PairingInfo {
     pub code: String,
     pub age_secs: u64,
+    /// クライアントが申告した端末名（任意）。
+    pub device_name: Option<String>,
+    /// クライアントが申告したプラットフォーム（任意）。
+    pub platform: Option<String>,
 }
 
 /// 有効期限 (10 分)。
@@ -138,7 +168,7 @@ mod tests {
         let reg = PairingRegistry::default();
 
         // 1. セッション作成。
-        let (session, code) = reg.create_session();
+        let (session, code) = reg.create_session(None, None);
         assert!(!session.is_empty());
         assert_eq!(code.len(), 6);
 
@@ -160,7 +190,7 @@ mod tests {
     #[test]
     fn test_wrong_code_no_approval() {
         let reg = PairingRegistry::default();
-        let (_session, _code) = reg.create_session();
+        let (_session, _code) = reg.create_session(None, None);
 
         let ok = reg.approve_by_code("ZZZZZZ", "token".to_string());
         assert!(!ok);
@@ -170,7 +200,7 @@ mod tests {
     #[test]
     fn test_code_case_insensitive_trim() {
         let reg = PairingRegistry::default();
-        let (_session, code) = reg.create_session();
+        let (_session, code) = reg.create_session(None, None);
         let lower = format!(" {} ", code.to_lowercase());
         let ok = reg.approve_by_code(&lower, "tok".to_string());
         assert!(ok);
@@ -187,7 +217,7 @@ mod tests {
     #[test]
     fn test_double_approve_returns_false() {
         let reg = PairingRegistry::default();
-        let (_session, code) = reg.create_session();
+        let (_session, code) = reg.create_session(None, None);
 
         let ok1 = reg.approve_by_code(&code, "tok1".to_string());
         assert!(ok1);
@@ -195,12 +225,12 @@ mod tests {
         assert!(!ok2);
     }
 
-    /// pending_list は未承認セッションのみ返す。
+    /// pending_list は未承認セッションのみ返し、申告された端末名を含める。
     #[test]
     fn test_pending_list() {
         let reg = PairingRegistry::default();
-        let (_s1, _c1) = reg.create_session();
-        let (_s2, c2) = reg.create_session();
+        let (_s1, _c1) = reg.create_session(Some("Living Room TV".into()), Some("tvos".into()));
+        let (_s2, c2) = reg.create_session(None, None);
 
         // c2 を承認。
         reg.approve_by_code(&c2, "tok".to_string());
@@ -208,6 +238,29 @@ mod tests {
         let pending = reg.pending_list();
         // 2 セッション中 1 つが承認済みなので 1 件のみ。
         assert_eq!(pending.len(), 1);
+        // 残った未承認セッションは端末名を保持している。
+        assert_eq!(pending[0].device_name.as_deref(), Some("Living Room TV"));
+    }
+
+    /// peek_pending は未承認セッションの申告メタを返し、承認済み/未知コードは None。
+    #[test]
+    fn test_peek_pending() {
+        let reg = PairingRegistry::default();
+        let (_s, code) = reg.create_session(Some("My Phone".into()), Some("android".into()));
+
+        let meta = reg.peek_pending(&code).expect("pending should be found");
+        assert_eq!(meta.0.as_deref(), Some("My Phone"));
+        assert_eq!(meta.1.as_deref(), Some("android"));
+
+        // 大小・空白は正規化される。
+        assert!(reg.peek_pending(&format!("  {}  ", code.to_lowercase())).is_some());
+
+        // 承認後は pending ではないので None。
+        reg.approve_by_code(&code, "tok".to_string());
+        assert!(reg.peek_pending(&code).is_none());
+
+        // 未知コードは None。
+        assert!(reg.peek_pending("ZZZZZZ").is_none());
     }
 
     /// gen_code は SAFE_CHARS のみから構成される。

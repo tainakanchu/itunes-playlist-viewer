@@ -52,6 +52,20 @@ function mb(bytes: number): string {
   return (bytes / (1024 * 1024)).toFixed(1);
 }
 
+// ISO8601 の日時から「N日前に接続」等の相対表記を作る。パース不能時は元文字列。
+function relativeFromNow(iso: string): string {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return iso;
+  const sec = Math.max(0, Math.floor((Date.now() - t) / 1000));
+  if (sec < 60) return "たった今接続";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}分前に接続`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}時間前に接続`;
+  const day = Math.floor(hr / 24);
+  return `${day}日前に接続`;
+}
+
 export function SettingsDialog({ onClose }: SettingsDialogProps) {
   const {
     replayGain,
@@ -86,6 +100,9 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
   const [pairingMsg, setPairingMsg] = useState<{ type: "ok" | "err" | "info"; text: string } | null>(null);
   const [pairingBusy, setPairingBusy] = useState(false);
   const [pendingPairings, setPendingPairings] = useState<serverApi.PairingInfo[]>([]);
+  // ペアリング済み（承認済み）デバイス一覧と、解除中の端末 ID。
+  const [pairedDevices, setPairedDevices] = useState<serverApi.PairedDevice[]>([]);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
 
   // fonts
   const [fontList, setFontList] = useState<string[]>([]);
@@ -269,9 +286,13 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
       if (ok) {
         setPairingMsg({ type: "ok", text: "承認しました。端末がトークンを受け取ります。" });
         setPairingCode("");
-        // 承認後にリストを更新。
-        const list = await serverApi.listPendingPairings().catch(() => []);
-        setPendingPairings(list);
+        // 承認後に待ち一覧とペアリング済み一覧の両方を更新。
+        const [pending, paired] = await Promise.all([
+          serverApi.listPendingPairings().catch(() => []),
+          serverApi.listPairedDevices().catch(() => []),
+        ]);
+        setPendingPairings(pending);
+        setPairedDevices(paired);
       } else {
         setPairingMsg({ type: "err", text: "コードが見つかりません。期限切れか、入力ミスの可能性があります。" });
       }
@@ -292,12 +313,38 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
     }
   }, []);
 
-  // API セクションを開いたときに待ち端末リストを取得。
+  // ペアリング済みデバイス一覧を更新。
+  const refreshPairedDevices = useCallback(async () => {
+    try {
+      const list = await serverApi.listPairedDevices();
+      setPairedDevices(list);
+    } catch {
+      setPairedDevices([]);
+    }
+  }, []);
+
+  // デバイスのペアリングを解除。破壊操作なので confirm で確認する。
+  const handleRevokeDevice = useCallback(async (id: string, label: string) => {
+    if (!window.confirm(`「${label}」のペアリングを解除しますか？この端末は再接続できなくなります（再度ペアリングが必要です）。`)) return;
+    setRevokingId(id);
+    try {
+      await serverApi.revokeDevice(id);
+      await refreshPairedDevices();
+      pushToast("success", "デバイスのペアリングを解除しました。");
+    } catch (err) {
+      pushToast("error", `ペアリングの解除に失敗しました: ${err}`);
+    } finally {
+      setRevokingId(null);
+    }
+  }, [refreshPairedDevices, pushToast]);
+
+  // API セクションを開いたときに待ち端末・ペアリング済みデバイスを取得。
   useEffect(() => {
     if (section === "api" && apiStatus?.lanEnabled && apiStatus.running) {
       refreshPendingPairings();
+      refreshPairedDevices();
     }
-  }, [section, apiStatus?.lanEnabled, apiStatus?.running, refreshPendingPairings]);
+  }, [section, apiStatus?.lanEnabled, apiStatus?.running, refreshPendingPairings, refreshPairedDevices]);
 
   // URL をクリップボードにコピーし、一時的に「コピーしました」を表示。
   const handleCopyUrl = useCallback((url: string) => {
@@ -922,6 +969,50 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
                         <button
                           className="toolbar-btn"
                           onClick={refreshPendingPairings}
+                          style={{ marginTop: 4, alignSelf: "flex-start" }}
+                        >
+                          更新
+                        </button>
+                      </>
+                    )}
+
+                    {/* ペアリング済みデバイス */}
+                    <div className="settings-sectitle">ペアリング済みデバイス</div>
+
+                    {pairedDevices.length === 0 ? (
+                      <div className="settings-note">
+                        <Icon name="info" size={14} />
+                        <span>
+                          まだペアリングした端末はありません。上のコードを承認すると、ここに端末が並びます。各端末は個別に解除できます。
+                        </span>
+                      </div>
+                    ) : (
+                      <>
+                        {pairedDevices.map((d) => {
+                          const label = d.deviceName?.trim() || "名称未設定の端末";
+                          return (
+                            <div key={d.id} className="settings-kv" style={{ marginTop: 4, alignItems: "center" }}>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontWeight: 500, wordBreak: "break-all" }}>{label}</div>
+                                <div style={{ fontSize: "0.8em", opacity: 0.6 }}>
+                                  {d.platform ? `${d.platform} · ` : ""}
+                                  {relativeFromNow(d.createdAt)}
+                                </div>
+                              </div>
+                              <button
+                                className="toolbar-btn"
+                                onClick={() => handleRevokeDevice(d.id, label)}
+                                disabled={revokingId === d.id}
+                                style={{ flexShrink: 0 }}
+                              >
+                                <Icon name="x" size={13} /> 解除
+                              </button>
+                            </div>
+                          );
+                        })}
+                        <button
+                          className="toolbar-btn"
+                          onClick={refreshPairedDevices}
                           style={{ marginTop: 4, alignSelf: "flex-start" }}
                         >
                           更新

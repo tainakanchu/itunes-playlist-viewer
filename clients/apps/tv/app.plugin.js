@@ -2,6 +2,8 @@
  * Android TV 向け config plugin。AndroidManifest.xml に以下を行う:
  *   - <uses-feature android:name="android.software.leanback" android:required="false"/>
  *   - <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
+ *   - <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
+ *     （mDNS 探索: NsdManager の前段で MulticastLock を取得するため必要）
  *   - <application ... android:banner="@drawable/tv_banner">（leanback ランチャー必須のバナー）
  *   - assets/images/banner.png を res/drawable/tv_banner.png へコピー
  *
@@ -31,6 +33,20 @@ const withTvFeatures = (config) =>
     };
     ensure("android.software.leanback");
     ensure("android.hardware.touchscreen");
+    return cfg;
+  });
+
+// <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/> を注入
+// （expo-crateforge-mdns の NsdManager 探索が MulticastLock 取得に使う。重複防止）
+const withMulticastPermission = (config) =>
+  withAndroidManifest(config, (cfg) => {
+    const manifest = cfg.modResults.manifest;
+    if (!manifest["uses-permission"]) manifest["uses-permission"] = [];
+    const perms = manifest["uses-permission"];
+    const name = "android.permission.CHANGE_WIFI_MULTICAST_STATE";
+    if (!perms.some((p) => p.$ && p.$["android:name"] === name)) {
+      perms.push({ $: { "android:name": name } });
+    }
     return cfg;
   });
 
@@ -69,6 +85,7 @@ const withTvBannerAsset = (config) =>
 
 const withAndroidTV = (config) => {
   config = withTvFeatures(config);
+  config = withMulticastPermission(config);
   config = withTvBannerAttr(config);
   config = withTvBannerAsset(config);
   return config;
