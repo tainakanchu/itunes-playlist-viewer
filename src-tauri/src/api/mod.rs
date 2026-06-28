@@ -304,7 +304,7 @@ async fn auth_guard(
     }
 
     // LAN からの書き込みは原則 /api/remote/* と GET のみ許可する。
-    // 例外: `POST /api/tracks/{id}/rating` と `PUT /api/tracks/{id}/artwork` のみ許可する。
+    // 例外: `POST /api/tracks/{id}/rating` と `PUT`/`DELETE /api/tracks/{id}/artwork` のみ許可する。
     // rating はレーティングを DB に書くだけの最小権限エンドポイントで、ファイルタグや
     // 他メタデータには触れない (モバイルから★を設定する用)。artwork は実ファイルの
     // 埋め込みカバーを差し替える (ユーザー判断で LAN 設定を許可)。メタデータ編集
@@ -313,10 +313,11 @@ async fn auth_guard(
     let is_read_only_method = method == axum::http::Method::GET;
     let is_remote_path = path.starts_with("/api/remote");
     let is_rating_write = method == axum::http::Method::POST && is_rating_path(&path);
-    // アートワーク設定 (PUT) も LAN から token 認証つきで許可する。rating と違い
-    // 実ファイル(音源)のタグを書き換えるが、ユーザー判断で LAN 設定を許可している。
-    let is_artwork_write =
-        method == axum::http::Method::PUT && is_artwork_path(&path);
+    // アートワーク設定 (PUT)・削除 (DELETE) も LAN から token 認証つきで許可する。
+    // rating と違い実ファイル(音源)のタグを書き換えるが、ユーザー判断で LAN 設定を許可している。
+    let is_artwork_write = (method == axum::http::Method::PUT
+        || method == axum::http::Method::DELETE)
+        && is_artwork_path(&path);
 
     if !is_read_only_method && !is_remote_path && !is_rating_write && !is_artwork_write {
         return StatusCode::FORBIDDEN.into_response();
@@ -373,6 +374,7 @@ pub fn router(state: ApiState) -> Router {
             "/api/tracks/{trackId}/artwork",
             get(handlers::stream_artwork)
                 .put(handlers::set_track_artwork)
+                .delete(handlers::delete_track_artwork)
                 .layer(axum::extract::DefaultBodyLimit::max(ARTWORK_MAX_BYTES)),
         )
         .route("/api/stats", get(handlers::get_stats))

@@ -117,3 +117,8 @@ export async function setArtworkFromFile(
 ): Promise<number> {
   return invoke("set_artwork_from_file", { trackIds, path });
 }
+
+/// 指定トラックのカバーアートを削除。成功件数を返す。
+export async function removeArtwork(trackIds: number[]): Promise<number> {
+  return invoke("remove_artwork", { trackIds });
+}

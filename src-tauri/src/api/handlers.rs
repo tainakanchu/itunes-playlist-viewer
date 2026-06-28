@@ -624,6 +624,28 @@ pub async fn set_track_artwork(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// `DELETE /api/tracks/{trackId}/artwork` — 曲の埋め込みカバーを削除する。
+/// DB からファイルパスを引き、`remove_cover` で既存カバー(front)を削除して実ファイルの
+/// タグに書き戻す。対象/パス無し=404、削除失敗=500、成功=204。
+pub async fn delete_track_artwork(
+    State(state): State<ApiState>,
+    Path(track_id): Path<i64>,
+) -> Result<StatusCode, ApiError> {
+    let db = state.db()?;
+    let track = db
+        .get_track_by_track_id(track_id)
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| ApiError::not_found("track not found"))?;
+    let path_str = track.location_path.as_deref().unwrap_or("");
+    if path_str.is_empty() {
+        return Err(ApiError::not_found("no file path for this track"));
+    }
+    crate::artwork::remove_cover(path_str)
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    state.notify_library_changed(None);
+    Ok(StatusCode::NO_CONTENT)
+}
+
 /// 原本バイトをデコードし、アスペクト比維持で最大辺 ≤ size に縮小して再エンコードする。
 /// format 既定は webp (ロスレス, pure Rust)、"jpeg" 指定で JPEG (品質 82)。
 /// size 既定は 512。デコード/エンコードに失敗したら `None` (呼び出し側で原本へフォールバック)。

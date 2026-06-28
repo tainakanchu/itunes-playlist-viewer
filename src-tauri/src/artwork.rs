@@ -22,13 +22,31 @@ pub fn extract_picture(path: &str) -> Option<(Vec<u8>, String)> {
     Some((pic.data().to_vec(), mime))
 }
 
-/// 画像バイト列のマジックから MIME を判定する (PNG / JPEG のみ。既定 JPEG)。
-fn detect_mime(data: &[u8]) -> MimeType {
+/// 埋め込み用に画像を PNG/JPEG へ正規化して `(バイト列, MIME)` を返す。
+/// - PNG / JPEG はそのまま（再エンコードしない）。
+/// - それ以外（WebP/GIF/BMP 等）は decode して JPEG(品質90) に変換する。
+///   埋め込みカバーは MP4(covr) 等が JPEG/PNG しか確実に表示できないため。
+fn normalize_for_embed(data: Vec<u8>) -> Result<(Vec<u8>, MimeType), String> {
+    // PNG マジック
     if data.starts_with(&[0x89, 0x50, 0x4E, 0x47]) {
-        MimeType::Png
-    } else {
-        MimeType::Jpeg
+        return Ok((data, MimeType::Png));
     }
+    // JPEG マジック (FF D8 FF)
+    if data.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        return Ok((data, MimeType::Jpeg));
+    }
+    // それ以外は image でデコード → JPEG 再エンコード（JPEG はアルファ非対応なので RGB8 に落とす）。
+    let img = image::ImageReader::new(std::io::Cursor::new(&data))
+        .with_guessed_format()
+        .map_err(|e| format!("image format guess failed: {e}"))?
+        .decode()
+        .map_err(|e| format!("image decode failed: {e}"))?;
+    let rgb = img.to_rgb8();
+    let mut out: Vec<u8> = Vec::new();
+    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, 90)
+        .encode_image(&rgb)
+        .map_err(|e| format!("jpeg encode failed: {e}"))?;
+    Ok((out, MimeType::Jpeg))
 }
 
 /// 指定ファイルのカバーアートを差し替える (既存の CoverFront を消して新規追加)。
@@ -47,7 +65,7 @@ pub fn set_picture(path: &str, data: Vec<u8>) -> Result<(), String> {
     }
     let tag = tagged.primary_tag_mut().ok_or("no primary tag")?;
 
-    let mime = detect_mime(&data);
+    let (data, mime) = normalize_for_embed(data)?;
     tag.remove_picture_type(PictureType::CoverFront);
     tag.push_picture(Picture::new_unchecked(
         PictureType::CoverFront,
@@ -56,6 +74,34 @@ pub fn set_picture(path: &str, data: Vec<u8>) -> Result<(), String> {
         data,
     ));
 
+    tagged
+        .save_to_path(path, WriteOptions::default())
+        .map_err(|e| format!("save artwork failed: {e}"))?;
+    Ok(())
+}
+
+/// 指定ファイルの埋め込みカバー(front)を削除する（新規画像は追加しない）。
+/// カバーが無い場合は何もせず Ok（無駄な mtime 更新を避ける）。
+pub fn remove_cover(path: &str) -> Result<(), String> {
+    let mut tagged = Probe::open(path)
+        .map_err(|e| format!("open failed: {e}"))?
+        .read()
+        .map_err(|e| format!("probe failed: {e}"))?;
+
+    let Some(tag) = tagged.primary_tag_mut() else {
+        return Ok(()); // タグ無し = カバー無し
+    };
+
+    // 既にカバーが無ければ書き換えない (mtime を無駄に更新しない)。
+    let has_cover = tag
+        .pictures()
+        .iter()
+        .any(|p| p.pic_type() == PictureType::CoverFront);
+    if !has_cover {
+        return Ok(());
+    }
+
+    tag.remove_picture_type(PictureType::CoverFront);
     tagged
         .save_to_path(path, WriteOptions::default())
         .map_err(|e| format!("save artwork failed: {e}"))?;

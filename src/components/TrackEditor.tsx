@@ -274,7 +274,7 @@ export function TrackEditor({ tracks, onClose, onSaved }: TrackEditorProps) {
   const chooseArtwork = useCallback(async () => {
     const path = await open({
       multiple: false,
-      filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg"] }],
+      filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp"] }],
     });
     if (typeof path !== "string") return;
     setBusy(true);
@@ -286,6 +286,22 @@ export function TrackEditor({ tracks, onClose, onSaved }: TrackEditorProps) {
       onSaved();
     } catch (e) {
       setArtMsg(`設定に失敗しました (${e})`);
+    } finally {
+      setBusy(false);
+    }
+  }, [trackIds, onSaved]);
+
+  const removeArtwork = useCallback(async () => {
+    if (!window.confirm("選択中の曲のアートワークを削除します。よろしいですか？")) return;
+    setBusy(true);
+    setArtMsg("");
+    try {
+      const n = await libraryApi.removeArtwork(trackIds);
+      setArtVersion((v) => v + 1);
+      setArtMsg(`${n} 曲から削除しました`);
+      onSaved();
+    } catch (e) {
+      setArtMsg(`削除に失敗しました (${e})`);
     } finally {
       setBusy(false);
     }
@@ -354,6 +370,9 @@ export function TrackEditor({ tracks, onClose, onSaved }: TrackEditorProps) {
                 </button>
                 <button className="toolbar-btn" onClick={chooseArtwork} disabled={busy}>
                   <Icon name="filePlus" size={14} /> ファイルから…
+                </button>
+                <button className="toolbar-btn" onClick={removeArtwork} disabled={busy}>
+                  <Icon name="trash" size={14} /> 削除
                 </button>
               </div>
               {artMsg && <div style={{ fontSize: 12, color: "var(--mut)" }}>{artMsg}</div>}
