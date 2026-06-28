@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { artGradient, leadingGlyph } from "../lib/art";
+import { useStore } from "../store/useStore";
 
 const isTauri = "__TAURI_INTERNALS__" in window;
 
@@ -16,9 +17,12 @@ export function artworkUrl(path: string | null | undefined): string | null {
 /// 下地のグラデーション＋グリフがそのまま見える。
 export function ArtworkImg({ path }: { path: string | null | undefined }) {
   const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [path]);
+  const epoch = useStore((s) => s.artworkEpoch);
+  // path 変更時に加え、epoch 更新時にも失敗状態をリセットして再取得を許可する。
+  useEffect(() => setFailed(false), [path, epoch]);
 
-  const url = artworkUrl(path);
+  const base = artworkUrl(path);
+  const url = base ? `${base}${base.includes("?") ? "&" : "?"}v=${epoch}` : null;
   if (!url || failed) return null;
   return (
     <img
