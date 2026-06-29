@@ -119,6 +119,11 @@ export async function setArtworkFromFile(
   return invoke("set_artwork_from_file", { trackIds, path });
 }
 
+/// 指定トラックのカバーアートを削除。成功件数を返す。
+export async function removeArtwork(trackIds: number[]): Promise<number> {
+  return invoke("remove_artwork", { trackIds });
+}
+
 /// organize (自動整理) が有効かどうかを返す。
 export async function getOrganizeActive(): Promise<boolean> {
   return invoke("organize_active");

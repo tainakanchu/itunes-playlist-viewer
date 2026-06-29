@@ -60,6 +60,7 @@ export function TrackEditor({ tracks, onClose, onSaved }: TrackEditorProps) {
   const single = tracks.length === 1;
   const trackIds = useMemo(() => tracks.map((t) => t.trackId), [tracks]);
   const pushToast = useStore((s) => s.pushToast);
+  const bumpArtworkEpoch = useStore((s) => s.bumpArtworkEpoch);
   // 最初のテキスト入力への ref（初期フォーカス用）
   const firstInputRef = useRef<HTMLInputElement>(null);
 
@@ -262,6 +263,7 @@ export function TrackEditor({ tracks, onClose, onSaved }: TrackEditorProps) {
       const buf = new Uint8Array(await blob.arrayBuffer());
       const n = await libraryApi.setArtworkFromData(trackIds, toBase64(buf));
       setArtVersion((v) => v + 1);
+      bumpArtworkEpoch();
       setArtMsg(`${n} 曲に設定しました`);
       onSaved();
     } catch (e) {
@@ -269,12 +271,12 @@ export function TrackEditor({ tracks, onClose, onSaved }: TrackEditorProps) {
     } finally {
       setBusy(false);
     }
-  }, [trackIds, onSaved]);
+  }, [trackIds, onSaved, bumpArtworkEpoch]);
 
   const chooseArtwork = useCallback(async () => {
     const path = await open({
       multiple: false,
-      filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg"] }],
+      filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp"] }],
     });
     if (typeof path !== "string") return;
     setBusy(true);
@@ -282,6 +284,7 @@ export function TrackEditor({ tracks, onClose, onSaved }: TrackEditorProps) {
     try {
       const n = await libraryApi.setArtworkFromFile(trackIds, path);
       setArtVersion((v) => v + 1);
+      bumpArtworkEpoch();
       setArtMsg(`${n} 曲に設定しました`);
       onSaved();
     } catch (e) {
@@ -289,7 +292,24 @@ export function TrackEditor({ tracks, onClose, onSaved }: TrackEditorProps) {
     } finally {
       setBusy(false);
     }
-  }, [trackIds, onSaved]);
+  }, [trackIds, onSaved, bumpArtworkEpoch]);
+
+  const removeArtwork = useCallback(async () => {
+    if (!window.confirm("選択中の曲のアートワークを削除します。よろしいですか？")) return;
+    setBusy(true);
+    setArtMsg("");
+    try {
+      const n = await libraryApi.removeArtwork(trackIds);
+      setArtVersion((v) => v + 1);
+      bumpArtworkEpoch();
+      setArtMsg(`${n} 曲から削除しました`);
+      onSaved();
+    } catch (e) {
+      setArtMsg(`削除に失敗しました (${e})`);
+    } finally {
+      setBusy(false);
+    }
+  }, [trackIds, onSaved, bumpArtworkEpoch]);
 
   // 単曲のときだけ現在のジャケットをプレビュー (?v= でキャッシュバスト)。
   const baseArt = single ? artworkUrl(tracks[0].locationPath) : null;
@@ -354,6 +374,9 @@ export function TrackEditor({ tracks, onClose, onSaved }: TrackEditorProps) {
                 </button>
                 <button className="toolbar-btn" onClick={chooseArtwork} disabled={busy}>
                   <Icon name="filePlus" size={14} /> ファイルから…
+                </button>
+                <button className="toolbar-btn" onClick={removeArtwork} disabled={busy}>
+                  <Icon name="trash" size={14} /> 削除
                 </button>
               </div>
               {artMsg && <div style={{ fontSize: 12, color: "var(--mut)" }}>{artMsg}</div>}

@@ -446,6 +446,7 @@ export default function App() {
     let unlisten: (() => void) | undefined;
     (async () => {
       unlisten = await playlistsApi.onLibraryChanged(() => {
+        useStore.getState().bumpArtworkEpoch();
         reloadPlaylists();
         setReloadCount((c) => c + 1);
         libraryDirtyRef.current = true;

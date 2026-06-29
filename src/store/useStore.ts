@@ -109,6 +109,8 @@ interface AppState extends PersistedSettings {
 
   // グローバルトースト — セッション内のみ、永続化しない。
   toasts: Toast[];
+  // アートワーク差し替え時のキャッシュバスト用エポック（揮発・非永続）
+  artworkEpoch: number;
 
   // Actions
   setViewMode: (mode: ViewMode) => void;
@@ -179,6 +181,7 @@ interface AppState extends PersistedSettings {
   // Toasts
   pushToast: (kind: ToastKind, message: string, durationMs?: number) => number;
   dismissToast: (id: number) => void;
+  bumpArtworkEpoch: () => void;
 }
 
 // トーストの連番 ID 発番用カウンタ。
@@ -212,6 +215,7 @@ export const useStore = create<AppState>()(
       similarBaseTrackId: null,
       pendingUpdate: null,
       toasts: [],
+      artworkEpoch: 0,
 
       // Persisted
       fields: DEFAULT_FIELDS,
@@ -398,6 +402,7 @@ export const useStore = create<AppState>()(
       },
       dismissToast: (id) =>
         set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) })),
+      bumpArtworkEpoch: () => set((s) => ({ artworkEpoch: s.artworkEpoch + 1 })),
     }),
     {
       name: "itunes-viewer-settings",

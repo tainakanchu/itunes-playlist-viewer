@@ -45,3 +45,20 @@ pub fn set_artwork_from_file(
     let data = std::fs::read(&path).map_err(|e| format!("Reading image failed: {}", e))?;
     Ok(apply(&db, &track_ids, data))
 }
+
+/// 指定トラック群のカバーアートを削除する。成功件数を返す。
+#[tauri::command]
+pub fn remove_artwork(app: AppHandle, track_ids: Vec<i64>) -> Result<usize, String> {
+    let db = open_db(&app)?;
+    let mut ok = 0usize;
+    for id in &track_ids {
+        if let Ok(Some(t)) = db.get_track_by_track_id(*id) {
+            if let Some(path) = t.location_path {
+                if !path.is_empty() && artwork::remove_cover(&path).is_ok() {
+                    ok += 1;
+                }
+            }
+        }
+    }
+    Ok(ok)
+}

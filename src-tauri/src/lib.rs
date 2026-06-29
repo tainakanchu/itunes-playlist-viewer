@@ -192,6 +192,7 @@ pub fn run() {
             // artwork
             commands::artwork::set_artwork_from_data,
             commands::artwork::set_artwork_from_file,
+            commands::artwork::remove_artwork,
             // playlists
             commands::playlists::get_playlists,
             commands::playlists::get_playlist_tracks,
